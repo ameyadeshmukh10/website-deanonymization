@@ -14,6 +14,9 @@ data/*.json
 # Synthetic-test backup files
 data/*.real.json
 
+# Run logs — kept locally, not in repo
+logs/*.log
+
 # Cloudflare worker deps (installed via `npm install`)
 cloudflaredeanonymizationsetup/node_modules/
 

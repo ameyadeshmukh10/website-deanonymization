@@ -10,6 +10,8 @@ on:
 
 permissions:
   contents: read
+  # dawidd6/action-download-artifact uses the workflow-runs API
+  actions: read
 
 jobs:
   digest:

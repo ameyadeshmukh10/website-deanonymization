@@ -38,7 +38,13 @@ CREDITED_STATE_FILE = DATA_DIR / "credited_counts.json"
 # -----------------------------------------------------------------------------
 # Cloudflare Worker (Step 1B)
 # -----------------------------------------------------------------------------
-WORKER_BASE_URL = (os.getenv("WORKER_BASE_URL") or "").rstrip("/")
+_raw_worker_url = (os.getenv("WORKER_BASE_URL") or "").strip().rstrip("/")
+# Defensive: if the value is set but lacks a scheme (common mistake when
+# pasting into `gh secret set`), assume https. Catches the GitHub Actions
+# `InvalidSchema: No connection adapters were found for '.../export'` error.
+if _raw_worker_url and not _raw_worker_url.startswith(("http://", "https://")):
+    _raw_worker_url = "https://" + _raw_worker_url
+WORKER_BASE_URL = _raw_worker_url
 WORKER_ADMIN_TOKEN = os.getenv("WORKER_ADMIN_TOKEN") or ""
 WORKER_EXPORT_PAGE_LIMIT = 1000  # max allowed by Cloudflare KV `list`
 

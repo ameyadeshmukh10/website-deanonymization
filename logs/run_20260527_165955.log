@@ -1,6 +1,0 @@
-2026-05-27 16:59:55,310 INFO pipeline: logging to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/logs/run_20260527_165955.log
-2026-05-27 16:59:55,310 INFO pipeline: running steps: ['5']
-2026-05-27 16:59:55,312 INFO pipeline: === Step 5: qualifying visitors by inferred role ===
-2026-05-27 16:59:55,316 INFO role_filter: qualifier: 6 qualified (role=0, intent=6, both=0) / 37 matched / 0 had person data
-2026-05-27 16:59:55,316 INFO role_filter: wrote 6 qualified visitors to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/data/qualified_visitors.json
-2026-05-27 16:59:55,316 INFO pipeline: done.
