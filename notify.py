@@ -15,7 +15,6 @@ import argparse
 import json
 import logging
 import os
-import re
 import sys
 from typing import Any
 
@@ -60,29 +59,6 @@ def company_link(company_id: str | None) -> str | None:
     if not company_id or not HUBSPOT_PORTAL_ID:
         return None
     return f"{HUBSPOT_UI_BASE}/contacts/{HUBSPOT_PORTAL_ID}/company/{company_id}"
-
-
-# -----------------------------------------------------------------------------
-# Title-matching for the instant alert (defensive double-check)
-# -----------------------------------------------------------------------------
-# Quick regex covering the same buying-committee titles as
-# config.TARGET_TITLE_CLAUSES. We use a regex here instead of re-running the
-# PDL ES query — the data is already fetched.
-_BUYING_COMMITTEE_TITLE = re.compile(
-    r"\b("
-    r"vp\s+(of\s+)?(sales|marketing|growth|revenue|demand|gtm|go.to.market|revenue\s+operations|revops)"
-    r"|chief\s+(revenue|commercial|marketing|sales|growth)\s+officer"
-    r"|head\s+of\s+(sales|marketing|gtm|go.to.market|demand\s+generation|demand\s+gen|revenue\s+operations|revops|growth)"
-    r"|director\s+of\s+(revenue\s+operations|revops|demand\s+generation|demand\s+gen|go.to.market|gtm)"
-    r")\b",
-    re.IGNORECASE,
-)
-
-
-def _looks_like_buying_committee(title: str | None) -> bool:
-    if not isinstance(title, str) or not title.strip():
-        return False
-    return bool(_BUYING_COMMITTEE_TITLE.search(title))
 
 
 # -----------------------------------------------------------------------------
@@ -137,10 +113,12 @@ def alert_for_run() -> int:
         email = (write.get("email") or write.get("match_value") or "").strip().lower()
         person = person_index.get((dom, email)) or {}
         title = person.get("job_title") or ""
-        # Defensive double-check on title shape — skip if it doesn't read like
-        # buying committee (shouldn't fire given the ES filter, but cheap to verify).
-        if not _looks_like_buying_committee(title):
-            continue
+        # No defensive title re-check here — Step 6's PDL query already
+        # filtered to TARGET_TITLE_CLAUSES, so anything reaching this point
+        # via `created` + ICP-fit is by definition a buying-committee match.
+        # A stricter re-check (regex) was rejecting valid titles like
+        # "vice president of partner sales" because they used "vice president"
+        # instead of the abbreviation "vp".
         alerts.append({
             "name": person.get("full_name") or email or "(unknown)",
             "title": title or "(unknown title)",
