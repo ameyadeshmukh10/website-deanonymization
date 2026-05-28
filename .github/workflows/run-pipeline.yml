@@ -10,6 +10,12 @@ on:
   schedule:
     - cron: "0 */4 * * *"  # every 4 hours
   workflow_dispatch:
+    inputs:
+      all_ips:
+        description: "Battle-test mode: enrich every IP in KV (not just high-intent) and skip Step 5's intent gate. Expensive — burns ~1 PDL credit per uncached IP."
+        required: false
+        type: boolean
+        default: false
 
 # Avoid two scheduled runs racing each other if a prior one is slow.
 concurrency:
@@ -62,7 +68,12 @@ jobs:
           EOF
 
       - name: Run pipeline
-        run: python run_pipeline.py
+        run: |
+          if [ "${{ inputs.all_ips }}" = "true" ]; then
+            python run_pipeline.py --all-ips
+          else
+            python run_pipeline.py
+          fi
 
       - name: Slack alert if new ICP buying-committee contacts
         env:

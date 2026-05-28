@@ -78,13 +78,19 @@ def _intent_hits(record: dict[str, Any]) -> list[str]:
     return hits
 
 
-def classify(record: dict[str, Any]) -> dict[str, Any] | None:
+def classify(
+    record: dict[str, Any],
+    *,
+    skip_intent_gate: bool = False,
+) -> dict[str, Any] | None:
     """Return a qualified-visitor record or None if it doesn't qualify.
 
     Gate order:
       1. Status must be `matched` (PDL resolved IP -> company).
       2. Company industry must be in ICP_INDUSTRIES (B2B tech ICP).
-      3. EITHER the role-based qualifier OR the intent-based qualifier must hit.
+      3. EITHER the role-based qualifier OR the intent-based qualifier must
+         hit — unless `skip_intent_gate=True` (battle-test / --all-ips mode),
+         in which case any matched + ICP visitor qualifies.
 
     Non-ICP visitors short-circuit BEFORE the qualifier checks so we never
     spend Person Search credits on out-of-ICP companies in Step 6.
@@ -108,7 +114,7 @@ def classify(record: dict[str, Any]) -> dict[str, Any] | None:
     # Path 2: intent-based qualifier (works without person inference)
     intent_hits = _intent_hits(record)
 
-    if not role_hits and not intent_hits:
+    if not skip_intent_gate and not role_hits and not intent_hits:
         return None
 
     # Function area: prefer role-derived; fall back to "gtm" (union of
@@ -130,6 +136,8 @@ def classify(record: dict[str, Any]) -> dict[str, Any] | None:
 
 def filter_visitors(
     enriched: dict[str, dict[str, Any]],
+    *,
+    skip_intent_gate: bool = False,
 ) -> dict[str, dict[str, Any]]:
     qualified: dict[str, dict[str, Any]] = {}
     matched_total = 0
@@ -144,7 +152,7 @@ def filter_visitors(
                 icp_total += 1
             if enrichment.get("person"):
                 person_total += 1
-        out = classify(record)
+        out = classify(record, skip_intent_gate=skip_intent_gate)
         if out is not None:
             qualified[ip] = out
             r = bool(out.get("role_qualifier_hits"))
@@ -180,9 +188,9 @@ def save_qualified(records: dict[str, dict[str, Any]]) -> None:
     )
 
 
-def run() -> dict[str, dict[str, Any]]:
+def run(*, skip_intent_gate: bool = False) -> dict[str, dict[str, Any]]:
     enriched = load_enriched()
-    qualified = filter_visitors(enriched)
+    qualified = filter_visitors(enriched, skip_intent_gate=skip_intent_gate)
     save_qualified(qualified)
     return qualified
 

@@ -146,7 +146,9 @@ def main() -> int:
     if "5" in steps:
         import role_filter
         logger.info("=== Step 5: qualifying visitors by inferred role ===")
-        role_filter.run()
+        # When --all-ips is set, also bypass Step 5's role/intent gate so
+        # any matched ICP company qualifies (battle-test mode).
+        role_filter.run(skip_intent_gate=args.all_ips)
 
     if "6" in steps:
         import person_lookup

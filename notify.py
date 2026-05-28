@@ -94,13 +94,21 @@ def alert_for_run() -> int:
                 "name": c.get("name"),
             }
 
-    # Build a lookup: (domain, email) -> person row (so we can pull title/levels)
-    person_index: dict[tuple[str, str], dict[str, Any]] = {}
+    # Build dual lookups: (domain, email) and (domain, linkedin_url).
+    # Contacts created via LinkedIn fallback have no email, so we need the
+    # second index to find their title for the Slack message.
+    from hubspot_client import canonicalize_linkedin_url
+    person_by_email: dict[tuple[str, str], dict[str, Any]] = {}
+    person_by_linkedin: dict[tuple[str, str], dict[str, Any]] = {}
     for dom, persons in people_by_domain.items():
+        dom_lower = (dom or "").lower()
         for p in persons:
             email = (p.get("work_email") or "").strip().lower()
+            li = canonicalize_linkedin_url(p.get("linkedin_url"))
             if email:
-                person_index[((dom or "").lower(), email)] = p
+                person_by_email[(dom_lower, email)] = p
+            if li:
+                person_by_linkedin[(dom_lower, li)] = p
 
     alerts: list[dict[str, Any]] = []
     for write in contact_writes:
@@ -110,9 +118,15 @@ def alert_for_run() -> int:
         meta = company_meta.get(dom) or {}
         if not meta.get("is_icp_fit"):
             continue
-        email = (write.get("email") or write.get("match_value") or "").strip().lower()
-        person = person_index.get((dom, email)) or {}
+        # Look up the person by whichever key was used for the upsert.
+        match_key = write.get("match_key") or "email"
+        match_value = (write.get("match_value") or write.get("email") or "").strip().lower()
+        if match_key == "linkedin_url":
+            person = person_by_linkedin.get((dom, match_value)) or {}
+        else:
+            person = person_by_email.get((dom, match_value)) or {}
         title = person.get("job_title") or ""
+        email_for_display = person.get("work_email") or ""
         # No defensive title re-check here — Step 6's PDL query already
         # filtered to TARGET_TITLE_CLAUSES, so anything reaching this point
         # via `created` + ICP-fit is by definition a buying-committee match.
@@ -120,30 +134,37 @@ def alert_for_run() -> int:
         # "vice president of partner sales" because they used "vice president"
         # instead of the abbreviation "vp".
         alerts.append({
-            "name": person.get("full_name") or email or "(unknown)",
+            "name": person.get("full_name") or match_value or "(unknown)",
             "title": title or "(unknown title)",
             "domain": dom,
             "company_name": meta.get("name") or dom,
             "company_id": meta.get("company_id"),
             "linkedin": person.get("linkedin_url"),
-            "email": email,
+            "email": email_for_display,
         })
 
     if not alerts:
         logger.info("no ICP buying-committee contacts created this run; no Slack post")
         return 0
 
-    # Compose Slack blocks
+    # Slack accepts ≤50 blocks per message via webhook; each alert consumes
+    # one section block. Cap visible alerts so a battle-test run with 100+
+    # creates doesn't get rejected. Header + footer take ~5 blocks → 40
+    # leftover is plenty, but stay conservative for readability too.
+    MAX_VISIBLE = 20
+    visible = alerts[:MAX_VISIBLE]
+    hidden = len(alerts) - len(visible)
+
     header = (
         f":dart: *{len(alerts)} new buying-committee "
         f"contact{'s' if len(alerts) != 1 else ''} identified*"
     )
     blocks: list[dict[str, Any]] = [
-        {"type": "header", "text": {"type": "plain_text", "text": "New high-intent contact"}},
+        {"type": "header", "text": {"type": "plain_text", "text": "New high-intent contacts"}},
         {"type": "section", "text": {"type": "mrkdwn", "text": header}},
         {"type": "divider"},
     ]
-    for a in alerts:
+    for a in visible:
         lines = [f"*{a['name']}* — {a['title']}"]
         lines.append(f"at *{a['company_name']}* ({a['domain']})")
         if a.get("email"):
@@ -155,9 +176,14 @@ def alert_for_run() -> int:
             lines.append(f"<{link}|Open in HubSpot →>")
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "\n".join(lines)}})
 
+    if hidden > 0:
+        blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text":
+            f"_…and {hidden} more in HubSpot. Full list in `data/hubspot_contact_writes.json`._"
+        }]})
+
     fallback = f"{len(alerts)} new buying-committee contact(s): " + ", ".join(
-        f"{a['name']} ({a['title']}) @ {a['company_name']}" for a in alerts
-    )
+        f"{a['name']} ({a['title']}) @ {a['company_name']}" for a in visible
+    ) + (f" (+{hidden} more)" if hidden else "")
     post_slack(blocks, fallback)
     return len(alerts)
 
