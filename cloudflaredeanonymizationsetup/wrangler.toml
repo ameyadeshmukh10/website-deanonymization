@@ -1,0 +1,50 @@
+# =============================================================================
+# Cloudflare Worker config for the Website Deanonymization capture layer.
+# =============================================================================
+#
+# DEPLOYMENT ORDER (do these once, in order):
+#
+#   1. npm install
+#   2. npx wrangler login
+#   3. npx wrangler kv namespace create IP_VISITS
+#      → copy the "id" it prints and paste it below as kv_namespaces[0].id
+#   4. npx wrangler secret put HUBSPOT_API_KEY
+#      → paste your HubSpot Private App access token (starts with "pat-")
+#   5. npx wrangler secret put ADMIN_TOKEN
+#      → paste any long random string (32+ chars). Save it; you'll also put it
+#        in your Python project's .env as WORKER_ADMIN_TOKEN.
+#   6. Edit vars.ALLOWED_ORIGIN below to match your site's origin
+#      (e.g. "https://yourdomain.com"). Use "*" only for local testing.
+#   7. npx wrangler deploy
+#      → note the URL it prints (e.g. https://website-deanon.<sub>.workers.dev)
+#   8. Smoke test: curl https://<your-worker>.workers.dev/health
+#
+# =============================================================================
+
+name = "website-deanon"
+main = "src/worker.js"
+compatibility_date = "2025-05-01"
+
+# --- KV namespace for visit storage --------------------------------------
+# Replace `id` with the id printed by `wrangler kv namespace create IP_VISITS`.
+# Leave preview_id empty unless you want a separate dev namespace.
+[[kv_namespaces]]
+binding = "IP_VISITS"
+id = "b8ae0eb4b7bd4dcdafe9e138d74964a9"
+
+# --- Non-secret vars (safe to commit) ------------------------------------
+[vars]
+# The site origin allowed to POST to /collect. Use exact origin in prod.
+# For local dev with file:// or http://localhost you can temporarily set "*".
+ALLOWED_ORIGIN = "https://everworker.ai"
+
+# HubSpot Custom Behavioral Event internal name. Must match the event you
+# create in HubSpot (Settings → Data Management → Custom Events). Requires
+# Marketing Hub Enterprise or Operations Hub. If your portal doesn't have
+# that tier, the mirror call returns 403 — that's fine, KV is the source
+# of truth.
+HUBSPOT_EVENT_NAME = "pe_website_visit"
+
+# --- Secrets (set via `wrangler secret put`, NOT here) -------------------
+# HUBSPOT_API_KEY  → your HubSpot Private App token
+# ADMIN_TOKEN      → bearer token required by /export

@@ -1,0 +1,28 @@
+2026-05-27 15:09:53,969 INFO pipeline: logging to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/logs/run_20260527_150953.log
+2026-05-27 15:09:53,969 INFO pipeline: running steps: ['4']
+2026-05-27 15:09:54,022 INFO pipeline: === Step 4: writing to HubSpot ===
+2026-05-27 15:09:54,026 DEBUG urllib3.connectionpool: Starting new HTTPS connection (1): api.hubapi.com:443
+2026-05-27 15:09:54,570 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/properties/companies HTTP/1.1" 200 None
+2026-05-27 15:09:54,702 INFO hubspot_client: aggregated 122 ips into 6 domains (delta visits this run: 5)
+2026-05-27 15:09:55,016 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 260
+2026-05-27 15:09:55,317 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/objects/companies/431546650841?properties=website_visit_count HTTP/1.1" 200 216
+2026-05-27 15:09:55,659 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "PATCH /crm/v3/objects/companies/431546650841 HTTP/1.1" 200 437
+2026-05-27 15:09:55,972 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 250
+2026-05-27 15:09:56,284 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/objects/companies/431456557242?properties=website_visit_count HTTP/1.1" 200 217
+2026-05-27 15:09:56,600 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "PATCH /crm/v3/objects/companies/431456557242 HTTP/1.1" 200 393
+2026-05-27 15:09:56,963 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 259
+2026-05-27 15:09:57,273 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/objects/companies/431562731733?properties=website_visit_count HTTP/1.1" 200 216
+2026-05-27 15:09:57,602 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "PATCH /crm/v3/objects/companies/431562731733 HTTP/1.1" 200 360
+2026-05-27 15:09:57,941 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 253
+2026-05-27 15:09:58,243 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/objects/companies/156782139619?properties=website_visit_count HTTP/1.1" 200 226
+2026-05-27 15:09:58,666 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "PATCH /crm/v3/objects/companies/156782139619 HTTP/1.1" 200 539
+2026-05-27 15:09:59,067 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 256
+2026-05-27 15:09:59,343 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/objects/companies/431546594542?properties=website_visit_count HTTP/1.1" 200 217
+2026-05-27 15:09:59,661 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "PATCH /crm/v3/objects/companies/431546594542 HTTP/1.1" 200 402
+2026-05-27 15:09:59,968 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 263
+2026-05-27 15:10:00,270 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/objects/companies/431562632388?properties=website_visit_count HTTP/1.1" 200 216
+2026-05-27 15:10:00,605 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "PATCH /crm/v3/objects/companies/431562632388 HTTP/1.1" 200 422
+2026-05-27 15:10:00,606 INFO hubspot_client: hubspot writes: {'updated': 6, 'created': 0, 'dry_run': 0, 'error': 0}
+2026-05-27 15:10:00,606 INFO hubspot_client: wrote 6 results to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/data/hubspot_writes.json
+2026-05-27 15:10:00,607 INFO hubspot_client: wrote credited state for 6 ips to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/data/credited_counts.json
+2026-05-27 15:10:00,609 INFO pipeline: done.

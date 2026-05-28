@@ -1,0 +1,9 @@
+2026-05-27 15:10:00,678 INFO pipeline: logging to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/logs/run_20260527_151000.log
+2026-05-27 15:10:00,678 INFO pipeline: running steps: ['4']
+2026-05-27 15:10:00,728 INFO pipeline: === Step 4: writing to HubSpot ===
+2026-05-27 15:10:00,733 DEBUG urllib3.connectionpool: Starting new HTTPS connection (1): api.hubapi.com:443
+2026-05-27 15:10:01,113 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/properties/companies HTTP/1.1" 200 None
+2026-05-27 15:10:01,133 INFO hubspot_client: aggregated 122 ips into 6 domains (delta visits this run: 0)
+2026-05-27 15:10:01,134 INFO hubspot_client: hubspot writes: {'updated': 0, 'created': 0, 'dry_run': 6, 'error': 0}
+2026-05-27 15:10:01,134 INFO hubspot_client: wrote 6 results to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/data/hubspot_writes.json
+2026-05-27 15:10:01,136 INFO pipeline: done.

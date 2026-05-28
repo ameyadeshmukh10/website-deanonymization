@@ -1,0 +1,22 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.DS_Store
+
+# Generated data — keep the folder, drop the contents
+data/*.json
+!data/.gitkeep
+# Synthetic-test backup files
+data/*.real.json
+
+# Cloudflare worker deps (installed via `npm install`)
+cloudflaredeanonymizationsetup/node_modules/
+
+# macOS
+.DS_Store
+**/.DS_Store

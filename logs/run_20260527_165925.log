@@ -1,0 +1,94 @@
+2026-05-27 16:59:25,284 INFO pipeline: logging to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/logs/run_20260527_165925.log
+2026-05-27 16:59:25,284 INFO pipeline: running steps: ['4']
+2026-05-27 16:59:25,359 INFO pipeline: === Step 4: writing companies to HubSpot ===
+2026-05-27 16:59:25,383 DEBUG urllib3.connectionpool: Starting new HTTPS connection (1): api.hubapi.com:443
+2026-05-27 16:59:25,914 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/properties/companies HTTP/1.1" 200 None
+2026-05-27 16:59:26,002 INFO hubspot_client: aggregated 889 ips into 36 domains (delta visits this run: 31)
+2026-05-27 16:59:26,323 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:26,830 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 497
+2026-05-27 16:59:27,137 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:27,570 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 522
+2026-05-27 16:59:27,871 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:28,273 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 539
+2026-05-27 16:59:28,675 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 260
+2026-05-27 16:59:28,983 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/objects/companies/431546650841?properties=website_visit_count HTTP/1.1" 200 216
+2026-05-27 16:59:29,363 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "PATCH /crm/v3/objects/companies/431546650841 HTTP/1.1" 200 434
+2026-05-27 16:59:29,766 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:30,209 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 511
+2026-05-27 16:59:30,525 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:30,889 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 532
+2026-05-27 16:59:31,212 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:31,626 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 536
+2026-05-27 16:59:31,926 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:32,324 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 508
+2026-05-27 16:59:32,661 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:33,045 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 528
+2026-05-27 16:59:33,340 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 250
+2026-05-27 16:59:33,695 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/objects/companies/431456557242?properties=website_visit_count HTTP/1.1" 200 217
+2026-05-27 16:59:34,056 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "PATCH /crm/v3/objects/companies/431456557242 HTTP/1.1" 200 386
+2026-05-27 16:59:34,361 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 259
+2026-05-27 16:59:34,661 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/objects/companies/108583111892?properties=website_visit_count HTTP/1.1" 200 228
+2026-05-27 16:59:35,033 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "PATCH /crm/v3/objects/companies/108583111892 HTTP/1.1" 200 475
+2026-05-27 16:59:35,355 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:35,735 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 491
+2026-05-27 16:59:36,043 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 253
+2026-05-27 16:59:36,360 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/objects/companies/57643902152?properties=website_visit_count HTTP/1.1" 200 226
+2026-05-27 16:59:36,765 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "PATCH /crm/v3/objects/companies/57643902152 HTTP/1.1" 200 542
+2026-05-27 16:59:37,067 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:37,479 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 515
+2026-05-27 16:59:37,797 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:38,166 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 534
+2026-05-27 16:59:38,504 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:38,852 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 542
+2026-05-27 16:59:39,144 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:39,527 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 518
+2026-05-27 16:59:39,830 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:40,184 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 517
+2026-05-27 16:59:40,491 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:40,940 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 535
+2026-05-27 16:59:41,225 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:41,540 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 524
+2026-05-27 16:59:41,848 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:42,225 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 532
+2026-05-27 16:59:42,550 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:42,985 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 497
+2026-05-27 16:59:43,323 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 259
+2026-05-27 16:59:43,623 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/objects/companies/156755536113?properties=website_visit_count HTTP/1.1" 200 227
+2026-05-27 16:59:44,037 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "PATCH /crm/v3/objects/companies/156755536113 HTTP/1.1" 200 459
+2026-05-27 16:59:44,443 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 259
+2026-05-27 16:59:44,753 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/objects/companies/431562731733?properties=website_visit_count HTTP/1.1" 200 216
+2026-05-27 16:59:45,102 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "PATCH /crm/v3/objects/companies/431562731733 HTTP/1.1" 200 356
+2026-05-27 16:59:45,395 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:45,739 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 534
+2026-05-27 16:59:46,036 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 263
+2026-05-27 16:59:46,321 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/objects/companies/429689106667?properties=website_visit_count HTTP/1.1" 200 225
+2026-05-27 16:59:46,743 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "PATCH /crm/v3/objects/companies/429689106667 HTTP/1.1" 200 480
+2026-05-27 16:59:47,062 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:47,429 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 497
+2026-05-27 16:59:47,740 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 268
+2026-05-27 16:59:48,033 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/objects/companies/429876914367?properties=website_visit_count HTTP/1.1" 200 225
+2026-05-27 16:59:48,404 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "PATCH /crm/v3/objects/companies/429876914367 HTTP/1.1" 200 479
+2026-05-27 16:59:48,743 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 253
+2026-05-27 16:59:49,020 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/objects/companies/156782139619?properties=website_visit_count HTTP/1.1" 200 226
+2026-05-27 16:59:49,379 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "PATCH /crm/v3/objects/companies/156782139619 HTTP/1.1" 200 549
+2026-05-27 16:59:49,718 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 256
+2026-05-27 16:59:49,999 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/objects/companies/431546594542?properties=website_visit_count HTTP/1.1" 200 217
+2026-05-27 16:59:50,348 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "PATCH /crm/v3/objects/companies/431546594542 HTTP/1.1" 200 398
+2026-05-27 16:59:50,656 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 266
+2026-05-27 16:59:50,957 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/objects/companies/431562632388?properties=website_visit_count HTTP/1.1" 200 219
+2026-05-27 16:59:51,311 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "PATCH /crm/v3/objects/companies/431562632388 HTTP/1.1" 200 397
+2026-05-27 16:59:51,714 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:52,094 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 525
+2026-05-27 16:59:52,429 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:52,844 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 501
+2026-05-27 16:59:53,184 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 251
+2026-05-27 16:59:53,468 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/objects/companies/83535319265?properties=website_visit_count HTTP/1.1" 200 226
+2026-05-27 16:59:53,867 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "PATCH /crm/v3/objects/companies/83535319265 HTTP/1.1" 200 558
+2026-05-27 16:59:54,174 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:54,585 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 524
+2026-05-27 16:59:54,877 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies/search HTTP/1.1" 200 24
+2026-05-27 16:59:55,204 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/companies HTTP/1.1" 201 511
+2026-05-27 16:59:55,205 INFO hubspot_client: hubspot writes: {'updated': 12, 'created': 24, 'dry_run': 0, 'error': 0}
+2026-05-27 16:59:55,207 INFO hubspot_client: wrote 36 results to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/data/hubspot_writes.json
+2026-05-27 16:59:55,208 INFO hubspot_client: wrote credited state for 37 ips to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/data/credited_counts.json
+2026-05-27 16:59:55,211 INFO pipeline: done.

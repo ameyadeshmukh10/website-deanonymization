@@ -1,0 +1,8 @@
+2026-05-27 00:31:38,370 INFO pipeline: logging to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/logs/run_20260527_003138.log
+2026-05-27 00:31:38,370 INFO pipeline: running steps: ['1b']
+2026-05-27 00:31:38,421 INFO pipeline: === Step 1B: pulling /export from the Worker ===
+2026-05-27 00:31:38,425 DEBUG urllib3.connectionpool: Starting new HTTPS connection (1): website-deanon.ameya-deshmukh.workers.dev:443
+2026-05-27 00:31:38,687 DEBUG urllib3.connectionpool: https://website-deanon.ameya-deshmukh.workers.dev:443 "GET /export?limit=1000 HTTP/1.1" 200 None
+2026-05-27 00:31:38,689 INFO worker_client: page 1: 37 ips (running total 37)
+2026-05-27 00:31:38,694 INFO worker_client: wrote 37 ips to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/data/ip_visits.json
+2026-05-27 00:31:38,694 INFO pipeline: done.

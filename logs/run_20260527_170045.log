@@ -1,0 +1,56 @@
+2026-05-27 17:00:45,956 INFO pipeline: logging to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/logs/run_20260527_170045.log
+2026-05-27 17:00:45,956 INFO pipeline: running steps: ['6']
+2026-05-27 17:00:46,058 INFO pipeline: === Step 6: PDL Person Search for peers at ICP companies ===
+2026-05-27 17:00:46,084 DEBUG urllib3.connectionpool: Starting new HTTPS connection (1): api.peopledatalabs.com:443
+2026-05-27 17:00:46,397 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "POST /v5/person/search HTTP/1.1" 404 116
+2026-05-27 17:00:46,399 WARNING person_lookup: person search [broad] for cyathens.org -> 404: {"status": 404, "error": {"type": "not_found", "message": "No records were found matching your search"}, "total": 0}
+2026-05-27 17:00:46,399 INFO person_lookup: cyathens.org -> 0 people
+2026-05-27 17:00:46,400 INFO person_lookup: wrote person cache (1 keys) to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/data/pdl_person_cache.json
+2026-05-27 17:00:46,569 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "POST /v5/person/search HTTP/1.1" 404 116
+2026-05-27 17:00:46,569 WARNING person_lookup: person search [cxo-fn] for lenscrafters.com -> 404: {"status": 404, "error": {"type": "not_found", "message": "No records were found matching your search"}, "total": 0}
+2026-05-27 17:00:46,760 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "POST /v5/person/search HTTP/1.1" 404 116
+2026-05-27 17:00:46,761 WARNING person_lookup: person search [vp-fn] for lenscrafters.com -> 404: {"status": 404, "error": {"type": "not_found", "message": "No records were found matching your search"}, "total": 0}
+2026-05-27 17:00:46,925 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "POST /v5/person/search HTTP/1.1" 404 116
+2026-05-27 17:00:46,926 WARNING person_lookup: person search [cxo-marketing] for lenscrafters.com -> 404: {"status": 404, "error": {"type": "not_found", "message": "No records were found matching your search"}, "total": 0}
+2026-05-27 17:00:47,115 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "POST /v5/person/search HTTP/1.1" 404 116
+2026-05-27 17:00:47,116 WARNING person_lookup: person search [director-fn] for lenscrafters.com -> 404: {"status": 404, "error": {"type": "not_found", "message": "No records were found matching your search"}, "total": 0}
+2026-05-27 17:00:47,376 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "POST /v5/person/search HTTP/1.1" 200 8301
+2026-05-27 17:00:47,378 INFO person_lookup: person search [manager-fn] lenscrafters.com: returned 5
+2026-05-27 17:00:47,378 INFO person_lookup: lenscrafters.com -> 5 people
+2026-05-27 17:00:47,384 INFO person_lookup: wrote person cache (2 keys) to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/data/pdl_person_cache.json
+2026-05-27 17:00:47,607 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "POST /v5/person/search HTTP/1.1" 200 3518
+2026-05-27 17:00:47,609 INFO person_lookup: person search [broad] cancerfreekids.org: returned 2
+2026-05-27 17:00:47,609 INFO person_lookup: cancerfreekids.org -> 2 people
+2026-05-27 17:00:47,616 INFO person_lookup: wrote person cache (3 keys) to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/data/pdl_person_cache.json
+2026-05-27 17:00:47,860 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "POST /v5/person/search HTTP/1.1" 200 5834
+2026-05-27 17:00:47,861 INFO person_lookup: person search [cxo-fn] abbvie.com: returned 4
+2026-05-27 17:00:48,155 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "POST /v5/person/search HTTP/1.1" 200 19484
+2026-05-27 17:00:48,159 INFO person_lookup: person search [vp-fn] abbvie.com: returned 10
+2026-05-27 17:00:48,440 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "POST /v5/person/search HTTP/1.1" 200 3275
+2026-05-27 17:00:48,442 INFO person_lookup: person search [cxo-marketing] abbvie.com: returned 1
+2026-05-27 17:00:48,827 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "POST /v5/person/search HTTP/1.1" 200 24531
+2026-05-27 17:00:48,835 INFO person_lookup: person search [director-fn] abbvie.com: returned 10
+2026-05-27 17:00:49,136 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "POST /v5/person/search HTTP/1.1" 200 14318
+2026-05-27 17:00:49,138 INFO person_lookup: person search [manager-fn] abbvie.com: returned 5
+2026-05-27 17:00:49,139 INFO person_lookup: abbvie.com -> 29 people
+2026-05-27 17:00:49,172 INFO person_lookup: wrote person cache (4 keys) to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/data/pdl_person_cache.json
+2026-05-27 17:00:49,399 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "POST /v5/person/search HTTP/1.1" 200 1982
+2026-05-27 17:00:49,400 INFO person_lookup: person search [cxo-fn] corewellhealth.org: returned 1
+2026-05-27 17:00:49,778 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "POST /v5/person/search HTTP/1.1" 200 5828
+2026-05-27 17:00:49,780 INFO person_lookup: person search [vp-fn] corewellhealth.org: returned 3
+2026-05-27 17:00:49,946 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "POST /v5/person/search HTTP/1.1" 200 1982
+2026-05-27 17:00:49,947 INFO person_lookup: person search [cxo-marketing] corewellhealth.org: returned 1
+2026-05-27 17:00:50,197 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "POST /v5/person/search HTTP/1.1" 200 14410
+2026-05-27 17:00:50,200 INFO person_lookup: person search [director-fn] corewellhealth.org: returned 9
+2026-05-27 17:00:50,413 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "POST /v5/person/search HTTP/1.1" 200 7920
+2026-05-27 17:00:50,416 INFO person_lookup: person search [manager-fn] corewellhealth.org: returned 5
+2026-05-27 17:00:50,416 INFO person_lookup: corewellhealth.org -> 18 people
+2026-05-27 17:00:50,458 INFO person_lookup: wrote person cache (5 keys) to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/data/pdl_person_cache.json
+2026-05-27 17:00:50,659 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "POST /v5/person/search HTTP/1.1" 404 116
+2026-05-27 17:00:50,660 WARNING person_lookup: person search [broad] for austintechnologycouncil.org -> 404: {"status": 404, "error": {"type": "not_found", "message": "No records were found matching your search"}, "total": 0}
+2026-05-27 17:00:50,660 INFO person_lookup: austintechnologycouncil.org -> 0 people
+2026-05-27 17:00:50,697 INFO person_lookup: wrote person cache (6 keys) to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/data/pdl_person_cache.json
+2026-05-27 17:00:50,719 INFO person_lookup: wrote person cache (6 keys) to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/data/pdl_person_cache.json
+2026-05-27 17:00:50,719 INFO person_lookup: person search cache: 0 hits, 6 misses
+2026-05-27 17:00:50,721 INFO person_lookup: wrote 54 people across 6 companies to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/data/people.json
+2026-05-27 17:00:50,721 INFO pipeline: done.

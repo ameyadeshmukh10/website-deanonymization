@@ -1,0 +1,26 @@
+2026-05-27 16:15:47,752 INFO pipeline: logging to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/logs/run_20260527_161547.log
+2026-05-27 16:15:47,752 INFO pipeline: running steps: ['5', '6', '7']
+2026-05-27 16:15:47,753 INFO pipeline: === Step 5: qualifying visitors by inferred role ===
+2026-05-27 16:15:47,753 INFO role_filter: role filter: 1 qualified / 1 with person data / 7 matched total
+2026-05-27 16:15:47,754 INFO role_filter: wrote 1 qualified visitors to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/data/qualified_visitors.json
+2026-05-27 16:15:47,838 INFO pipeline: === Step 6: PDL Person Search for peers at ICP companies ===
+2026-05-27 16:15:47,839 INFO person_lookup: peopledatalabs.com -> 7 people
+2026-05-27 16:15:47,841 INFO person_lookup: wrote person cache (1 keys) to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/data/pdl_person_cache.json
+2026-05-27 16:15:47,843 INFO person_lookup: wrote person cache (1 keys) to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/data/pdl_person_cache.json
+2026-05-27 16:15:47,843 INFO person_lookup: person search cache: 1 hits, 0 misses
+2026-05-27 16:15:47,843 INFO person_lookup: wrote 7 people across 1 companies to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/data/people.json
+2026-05-27 16:15:47,843 INFO pipeline: === Step 7: writing contacts to HubSpot ===
+2026-05-27 16:15:47,849 DEBUG urllib3.connectionpool: Starting new HTTPS connection (1): api.hubapi.com:443
+2026-05-27 16:15:48,240 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/contacts/search HTTP/1.1" 200 260
+2026-05-27 16:15:48,667 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/properties/contacts HTTP/1.1" 200 None
+2026-05-27 16:15:48,733 INFO contact_upsert: LinkedIn fallback active: matching/writing via `hs_linkedin_url`
+2026-05-27 16:15:48,734 WARNING contact_upsert: no HubSpot company_id for peopledatalabs.com; person will be upserted but not associated
+2026-05-27 16:15:48,734 WARNING contact_upsert: no HubSpot company_id for peopledatalabs.com; person will be upserted but not associated
+2026-05-27 16:15:48,734 WARNING contact_upsert: no HubSpot company_id for peopledatalabs.com; person will be upserted but not associated
+2026-05-27 16:15:48,734 WARNING contact_upsert: no HubSpot company_id for peopledatalabs.com; person will be upserted but not associated
+2026-05-27 16:15:48,734 WARNING contact_upsert: no HubSpot company_id for peopledatalabs.com; person will be upserted but not associated
+2026-05-27 16:15:48,734 WARNING contact_upsert: no HubSpot company_id for peopledatalabs.com; person will be upserted but not associated
+2026-05-27 16:15:48,734 WARNING contact_upsert: no HubSpot company_id for peopledatalabs.com; person will be upserted but not associated
+2026-05-27 16:15:48,734 INFO contact_upsert: contact writes: {'created': 0, 'updated': 0, 'skipped': 0, 'dry_run': 7, 'error': 0}
+2026-05-27 16:15:48,734 INFO contact_upsert: wrote 7 contact results to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/data/hubspot_contact_writes.json
+2026-05-27 16:15:48,735 INFO pipeline: done.

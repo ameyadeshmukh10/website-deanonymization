@@ -1,0 +1,10 @@
+2026-05-27 16:14:50,091 INFO pipeline: logging to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/logs/run_20260527_161450.log
+2026-05-27 16:14:50,091 INFO pipeline: running steps: ['7']
+2026-05-27 16:14:50,230 INFO pipeline: === Step 7: writing contacts to HubSpot ===
+2026-05-27 16:14:50,236 DEBUG urllib3.connectionpool: Starting new HTTPS connection (1): api.hubapi.com:443
+2026-05-27 16:14:50,621 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "POST /crm/v3/objects/contacts/search HTTP/1.1" 200 260
+2026-05-27 16:14:50,954 DEBUG urllib3.connectionpool: https://api.hubapi.com:443 "GET /crm/v3/properties/contacts HTTP/1.1" 200 None
+2026-05-27 16:14:51,290 WARNING contact_upsert: LinkedIn property `linkedin_url` not found on contact object — falling back to email-only. Create the custom property in HubSpot (Settings → Properties → Contact properties, type: Single-line text) to enable LinkedIn-URL matching when PDL doesn't return work_email.
+2026-05-27 16:14:51,292 INFO contact_upsert: contact writes: {'created': 0, 'updated': 0, 'skipped': 0, 'dry_run': 0, 'error': 0}
+2026-05-27 16:14:51,292 INFO contact_upsert: wrote 0 contact results to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/data/hubspot_contact_writes.json
+2026-05-27 16:14:51,293 INFO pipeline: done.

@@ -1,0 +1,14 @@
+2026-05-27 15:13:56,468 INFO pipeline: logging to /Users/ameyadeshmukh/Documents/sdraiworker/Website-Deanonymization-AI-Worker/logs/run_20260527_151356.log
+2026-05-27 15:13:56,468 INFO pipeline: running steps: ['3']
+2026-05-27 15:13:56,542 INFO pipeline: === Step 3: enriching with People Data Labs ===
+2026-05-27 15:13:56,562 DEBUG urllib3.connectionpool: Starting new HTTPS connection (1): api.peopledatalabs.com:443
+2026-05-27 15:13:56,830 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "GET /v5/ip/enrich?ip=103.110.163.182 HTTP/1.1" 429 132
+2026-05-27 15:13:56,831 WARNING pdl_client: PDL 103.110.163.182 -> 429, will retry
+2026-05-27 15:13:58,014 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "GET /v5/ip/enrich?ip=103.110.163.182 HTTP/1.1" 429 132
+2026-05-27 15:13:58,015 WARNING pdl_client: PDL 103.110.163.182 -> 429, will retry
+2026-05-27 15:14:00,196 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "GET /v5/ip/enrich?ip=103.110.163.182 HTTP/1.1" 429 132
+2026-05-27 15:14:00,197 WARNING pdl_client: PDL 103.110.163.182 -> 429, will retry
+2026-05-27 15:14:04,362 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "GET /v5/ip/enrich?ip=103.110.163.182 HTTP/1.1" 429 132
+2026-05-27 15:14:04,362 WARNING pdl_client: PDL 103.110.163.182 -> 429, will retry
+2026-05-27 15:14:12,543 DEBUG urllib3.connectionpool: https://api.peopledatalabs.com:443 "GET /v5/ip/enrich?ip=103.110.163.182 HTTP/1.1" 429 132
+2026-05-27 15:14:12,544 WARNING pdl_client: PDL 103.110.163.182 -> 429, will retry

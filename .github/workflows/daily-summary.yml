@@ -1,0 +1,46 @@
+name: Daily summary
+
+# Fires at 11:00 UTC daily (= 7am EDT in summer, 6am EST in winter — accept
+# 1h DST drift for v1). Reads the most recent pipeline-state artifact and
+# posts a one-shot digest to Slack. Does NOT run the pipeline itself.
+on:
+  schedule:
+    - cron: "0 11 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Download latest pipeline state
+        # Read-only — the digest doesn't write new state.
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          name: pipeline-state
+          workflow: run-pipeline.yml
+          workflow_conclusion: success
+          path: data
+          if_no_artifact_found: warn
+
+      - name: Post daily summary to Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          HUBSPOT_PORTAL_ID: ${{ secrets.HUBSPOT_PORTAL_ID }}
+        run: python notify.py --mode digest

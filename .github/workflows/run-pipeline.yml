@@ -1,0 +1,86 @@
+name: Run pipeline
+
+# Fires every 4 hours and on manual dispatch. Pulls /export from the
+# Cloudflare worker, runs Steps 1B-7, fires a Slack instant alert if any
+# new ICP-fit buying-committee contact was created.
+#
+# State files in data/ persist between runs via the `pipeline-state`
+# artifact (uploaded after each run, downloaded before the next).
+on:
+  schedule:
+    - cron: "0 */4 * * *"  # every 4 hours
+  workflow_dispatch:
+
+# Avoid two scheduled runs racing each other if a prior one is slow.
+concurrency:
+  group: run-pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore pipeline state from latest successful run
+        # First run of this workflow will have nothing to download; that's OK.
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          name: pipeline-state
+          workflow: run-pipeline.yml
+          workflow_conclusion: success
+          path: data
+          if_no_artifact_found: warn
+
+      - name: Write .env from secrets
+        # Heredoc keeps values off the command line; GitHub auto-masks secrets
+        # in logs regardless.
+        run: |
+          cat > .env <<EOF
+          WORKER_BASE_URL=${{ secrets.WORKER_BASE_URL }}
+          WORKER_ADMIN_TOKEN=${{ secrets.WORKER_ADMIN_TOKEN }}
+          PDL_API_KEY=${{ secrets.PDL_API_KEY }}
+          HUBSPOT_API_KEY=${{ secrets.HUBSPOT_API_KEY }}
+          HUBSPOT_LINKEDIN_PROPERTY=${{ secrets.HUBSPOT_LINKEDIN_PROPERTY }}
+          EOF
+
+      - name: Run pipeline
+        run: python run_pipeline.py
+
+      - name: Slack alert if new ICP buying-committee contacts
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          HUBSPOT_PORTAL_ID: ${{ secrets.HUBSPOT_PORTAL_ID }}
+        run: python notify.py --mode run
+
+      - name: Save pipeline state
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-state
+          path: data/
+          retention-days: 30
+          overwrite: true
+
+      - name: Save run logs (debug aid)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-logs-${{ github.run_id }}
+          path: logs/
+          retention-days: 7
+          if-no-files-found: ignore
