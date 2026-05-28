@@ -213,6 +213,27 @@ HUBSPOT_COMPANY_SEARCH = f"{HUBSPOT_BASE}/crm/v3/objects/companies/search"
 HUBSPOT_COMPANIES = f"{HUBSPOT_BASE}/crm/v3/objects/companies"
 HUBSPOT_PAGE_LIMIT = 100
 
+
+# HubSpot Private App tokens encode the data residency region in the prefix
+# (`pat-eu1-`, `pat-na1-`, `pat-au1-`). The app UI host varies by region, so
+# auto-detect for deep-links that actually land on the user's portal.
+def _hubspot_ui_base(api_key: str) -> str:
+    if api_key.startswith("pat-eu1-"):
+        return "https://app-eu1.hubspot.com"
+    if api_key.startswith("pat-au1-"):
+        return "https://app-au1.hubspot.com"
+    if api_key.startswith("pat-ca1-"):
+        return "https://app-ca1.hubspot.com"
+    return "https://app.hubspot.com"
+
+
+HUBSPOT_UI_BASE = _hubspot_ui_base(HUBSPOT_API_KEY)
+
+# Strip non-digits. Catches paste mistakes that prepend "# " or other
+# markdown-comment chars (which previously produced `# %20` in Slack URLs).
+_raw_portal = (os.getenv("HUBSPOT_PORTAL_ID") or "").strip()
+HUBSPOT_PORTAL_ID = "".join(c for c in _raw_portal if c.isdigit())
+
 # --- Step 7: HubSpot contacts -----------------------------------------------
 HUBSPOT_CONTACT_SEARCH = f"{HUBSPOT_BASE}/crm/v3/objects/contacts/search"
 HUBSPOT_CONTACT_PROPERTIES = f"{HUBSPOT_BASE}/crm/v3/properties/contacts"

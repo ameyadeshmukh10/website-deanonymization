@@ -14,8 +14,11 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import math
 import os
 import sys
+import time
+from datetime import datetime, timezone
 from typing import Any
 
 import requests
@@ -27,20 +30,31 @@ logger = logging.getLogger(__name__)
 
 SLACK_WEBHOOK_URL = (os.getenv("SLACK_WEBHOOK_URL") or "").strip()
 
-# HubSpot UI base for deep-linking. Region is detected from the API token
-# prefix when available; fall back to the US portal.
-HUBSPOT_UI_BASE = "https://app.hubspot.com"
-HUBSPOT_PORTAL_ID = os.getenv("HUBSPOT_PORTAL_ID", "")  # optional; for direct links
+# --- Chunked delivery knobs -------------------------------------------------
+# Slack incoming webhooks accept ≤50 blocks per message. Each alert consumes
+# one section block; the chunk header/divider add ~4 blocks. 15 alerts per
+# chunk = ~19 blocks, well under the limit. Slack also rate-limits webhooks
+# to ~1 msg/sec; we sleep 1s between chunks to avoid 429s.
+CHUNK_SIZE = 15
+CHUNK_DELAY_SEC = 1.0
+
+# Per-alert pages-visited truncation — keeps each section block readable
+# and well under Slack's 3000-char-per-block limit.
+MAX_PAGES_SHOWN = 5
 
 
 # -----------------------------------------------------------------------------
 # Slack transport
 # -----------------------------------------------------------------------------
-def post_slack(blocks: list[dict[str, Any]], text_fallback: str) -> None:
-    """POST blocks to the Slack incoming webhook. No-op when webhook unset."""
+def post_slack(blocks: list[dict[str, Any]], text_fallback: str) -> bool:
+    """POST one Slack message. Returns True on 2xx, False otherwise.
+
+    No-ops (returns True) if SLACK_WEBHOOK_URL is unset, so local runs
+    work without configuring the webhook.
+    """
     if not SLACK_WEBHOOK_URL:
         logger.info("SLACK_WEBHOOK_URL not set; skipping Slack post (would have sent: %s)", text_fallback)
-        return
+        return True
     resp = requests.post(
         SLACK_WEBHOOK_URL,
         json={"text": text_fallback, "blocks": blocks},
@@ -50,15 +64,62 @@ def post_slack(blocks: list[dict[str, Any]], text_fallback: str) -> None:
         logger.warning(
             "Slack webhook returned %s: %s", resp.status_code, resp.text[:300]
         )
-    else:
-        logger.info("posted to Slack: %s", text_fallback)
+        return False
+    logger.info("posted to Slack: %s", text_fallback)
+    return True
 
 
+# -----------------------------------------------------------------------------
+# HubSpot deep-link helpers
+# -----------------------------------------------------------------------------
 def company_link(company_id: str | None) -> str | None:
-    """Build a HubSpot deep-link to the company record, if portal id known."""
-    if not company_id or not HUBSPOT_PORTAL_ID:
+    """Modern HubSpot company record URL (CRM v3 format)."""
+    if not company_id or not config.HUBSPOT_PORTAL_ID:
         return None
-    return f"{HUBSPOT_UI_BASE}/contacts/{HUBSPOT_PORTAL_ID}/company/{company_id}"
+    return (
+        f"{config.HUBSPOT_UI_BASE}/contacts/{config.HUBSPOT_PORTAL_ID}"
+        f"/record/0-2/{company_id}"
+    )
+
+
+def contact_link(contact_id: str | None) -> str | None:
+    """Modern HubSpot contact record URL (CRM v3 format)."""
+    if not contact_id or not config.HUBSPOT_PORTAL_ID:
+        return None
+    return (
+        f"{config.HUBSPOT_UI_BASE}/contacts/{config.HUBSPOT_PORTAL_ID}"
+        f"/record/0-1/{contact_id}"
+    )
+
+
+# -----------------------------------------------------------------------------
+# Time formatting for visit context
+# -----------------------------------------------------------------------------
+def _humanize_last_visited(iso_str: str | None) -> str:
+    """Turn an ISO timestamp into a friendly 'N minutes/hours/days ago' string.
+
+    Falls back to the raw ISO string if parsing fails. Empty/None returns "".
+    """
+    if not iso_str or not isinstance(iso_str, str):
+        return ""
+    s = iso_str.replace("Z", "+00:00") if iso_str.endswith("Z") else iso_str
+    try:
+        dt = datetime.fromisoformat(s)
+    except ValueError:
+        return iso_str
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    delta_sec = (datetime.now(timezone.utc) - dt).total_seconds()
+    if delta_sec < 60:
+        return "just now"
+    if delta_sec < 3600:
+        m = int(delta_sec // 60)
+        return f"{m} minute{'s' if m != 1 else ''} ago"
+    if delta_sec < 86400:
+        h = int(delta_sec // 3600)
+        return f"{h} hour{'s' if h != 1 else ''} ago"
+    d = int(delta_sec // 86400)
+    return f"{d} day{'s' if d != 1 else ''} ago"
 
 
 # -----------------------------------------------------------------------------
@@ -83,7 +144,7 @@ def alert_for_run() -> int:
     company_writes = _load_json(config.HUBSPOT_RESULTS_FILE) or []
     people_by_domain = _load_json(config.PEOPLE_FILE) or {}
 
-    # domain -> {is_icp_fit, company_id, name}
+    # domain -> {is_icp_fit, company_id, name, last_visited, pages}
     company_meta: dict[str, dict[str, Any]] = {}
     for c in company_writes:
         dom = (c.get("domain") or "").lower()
@@ -92,6 +153,8 @@ def alert_for_run() -> int:
                 "is_icp_fit": bool(c.get("is_icp_fit")),
                 "company_id": c.get("company_id"),
                 "name": c.get("name"),
+                "last_visited": c.get("website_last_visited"),
+                "pages": c.get("website_pages_visited") or [],
             }
 
     # Build dual lookups: (domain, email) and (domain, linkedin_url).
@@ -139,53 +202,82 @@ def alert_for_run() -> int:
             "domain": dom,
             "company_name": meta.get("name") or dom,
             "company_id": meta.get("company_id"),
+            "contact_id": write.get("contact_id"),
             "linkedin": person.get("linkedin_url"),
             "email": email_for_display,
+            "last_visited": meta.get("last_visited"),
+            "pages": meta.get("pages") or [],
         })
 
     if not alerts:
         logger.info("no ICP buying-committee contacts created this run; no Slack post")
         return 0
 
-    # Slack accepts ≤50 blocks per message via webhook; each alert consumes
-    # one section block. Cap visible alerts so a battle-test run with 100+
-    # creates doesn't get rejected. Header + footer take ~5 blocks → 40
-    # leftover is plenty, but stay conservative for readability too.
-    MAX_VISIBLE = 20
-    visible = alerts[:MAX_VISIBLE]
-    hidden = len(alerts) - len(visible)
+    # Chunk into Slack-sized messages so all alerts get delivered (no cap).
+    total = len(alerts)
+    num_chunks = max(1, math.ceil(total / CHUNK_SIZE))
+    posted_chunks = 0
+    for chunk_idx in range(num_chunks):
+        chunk = alerts[chunk_idx * CHUNK_SIZE : (chunk_idx + 1) * CHUNK_SIZE]
+        page_label = (
+            f" (page {chunk_idx + 1}/{num_chunks})" if num_chunks > 1 else ""
+        )
+        header_text = (
+            f":dart: *{total} new buying-committee "
+            f"contact{'s' if total != 1 else ''} identified*{page_label}"
+        )
+        blocks: list[dict[str, Any]] = [
+            {"type": "header", "text": {"type": "plain_text", "text": "New high-intent contacts"}},
+            {"type": "section", "text": {"type": "mrkdwn", "text": header_text}},
+            {"type": "divider"},
+        ]
+        for a in chunk:
+            lines = [f"*{a['name']}* — {a['title']}"]
+            lines.append(f"at *{a['company_name']}* ({a['domain']})")
+            if a.get("email"):
+                lines.append(f"`{a['email']}`")
+            # Visit context — what pages they viewed and when
+            if a.get("last_visited"):
+                human = _humanize_last_visited(a["last_visited"])
+                lines.append(f"*Last visited:* {human}")
+            pages = a.get("pages") or []
+            if pages:
+                shown = pages[:MAX_PAGES_SHOWN]
+                extra = len(pages) - len(shown)
+                pages_str = "\n".join(f"  • `{p}`" for p in shown)
+                if extra > 0:
+                    pages_str += f"\n  _…and {extra} more_"
+                lines.append("*Pages visited:*\n" + pages_str)
+            # Links — LinkedIn + both HubSpot record links
+            link_parts: list[str] = []
+            if a.get("linkedin"):
+                link_parts.append(f"<https://{a['linkedin']}|LinkedIn>")
+            c_link = contact_link(a.get("contact_id"))
+            if c_link:
+                link_parts.append(f"<{c_link}|View contact →>")
+            co_link = company_link(a.get("company_id"))
+            if co_link:
+                link_parts.append(f"<{co_link}|Open company →>")
+            if link_parts:
+                lines.append(" · ".join(link_parts))
+            blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "\n".join(lines)}})
 
-    header = (
-        f":dart: *{len(alerts)} new buying-committee "
-        f"contact{'s' if len(alerts) != 1 else ''} identified*"
+        fallback = (
+            f"{total} new buying-committee contact(s){page_label}: "
+            + ", ".join(f"{a['name']} ({a['title']}) @ {a['company_name']}" for a in chunk)
+        )
+        ok = post_slack(blocks, fallback)
+        if ok:
+            posted_chunks += 1
+        # Respect Slack's ~1 msg/sec webhook rate limit between chunks
+        if chunk_idx < num_chunks - 1:
+            time.sleep(CHUNK_DELAY_SEC)
+
+    logger.info(
+        "sent %d/%d Slack chunk(s) for %d alerts",
+        posted_chunks, num_chunks, total,
     )
-    blocks: list[dict[str, Any]] = [
-        {"type": "header", "text": {"type": "plain_text", "text": "New high-intent contacts"}},
-        {"type": "section", "text": {"type": "mrkdwn", "text": header}},
-        {"type": "divider"},
-    ]
-    for a in visible:
-        lines = [f"*{a['name']}* — {a['title']}"]
-        lines.append(f"at *{a['company_name']}* ({a['domain']})")
-        if a.get("email"):
-            lines.append(f"`{a['email']}`")
-        if a.get("linkedin"):
-            lines.append(f"<https://{a['linkedin']}|LinkedIn>")
-        link = company_link(a.get("company_id"))
-        if link:
-            lines.append(f"<{link}|Open in HubSpot →>")
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "\n".join(lines)}})
-
-    if hidden > 0:
-        blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text":
-            f"_…and {hidden} more in HubSpot. Full list in `data/hubspot_contact_writes.json`._"
-        }]})
-
-    fallback = f"{len(alerts)} new buying-committee contact(s): " + ", ".join(
-        f"{a['name']} ({a['title']}) @ {a['company_name']}" for a in visible
-    ) + (f" (+{hidden} more)" if hidden else "")
-    post_slack(blocks, fallback)
-    return len(alerts)
+    return total
 
 
 # -----------------------------------------------------------------------------

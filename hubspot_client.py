@@ -484,6 +484,10 @@ def upsert(
         }
 
     existing_id = find_company_by_domain(session, domain)
+    # Visit-context fields persisted for `notify.py` to surface in Slack.
+    last_seen = bucket.get("last_seen")
+    pages = sorted(bucket.get("unique_pages") or [])
+
     if existing_id:
         existing_count = fetch_company_visit_count(session, existing_id)
         new_count = existing_count + delta
@@ -498,6 +502,8 @@ def upsert(
             "new_visit_count": new_count,
             "is_icp_fit": bool(bucket.get("is_icp_fit")),
             "name": bucket.get("name"),
+            "website_last_visited": last_seen,
+            "website_pages_visited": pages,
         }
 
     created = create_company(
@@ -512,6 +518,8 @@ def upsert(
         "new_visit_count": current,
         "is_icp_fit": bool(bucket.get("is_icp_fit")),
         "name": bucket.get("name"),
+        "website_last_visited": last_seen,
+        "website_pages_visited": pages,
     }
 
 
