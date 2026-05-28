@@ -38,13 +38,33 @@ CREDITED_STATE_FILE = DATA_DIR / "credited_counts.json"
 # -----------------------------------------------------------------------------
 # Cloudflare Worker (Step 1B)
 # -----------------------------------------------------------------------------
-_raw_worker_url = (os.getenv("WORKER_BASE_URL") or "").strip().rstrip("/")
-# Defensive: if the value is set but lacks a scheme (common mistake when
-# pasting into `gh secret set`), assume https. Catches the GitHub Actions
-# `InvalidSchema: No connection adapters were found for '.../export'` error.
+_raw_worker_url = (os.getenv("WORKER_BASE_URL") or "").strip()
+# Aggressively clean common paste mistakes: leading slashes (e.g. `//host`
+# or `/host`), trailing slashes, surrounding quotes/backticks. Then assume
+# https:// if no scheme present.
+_raw_worker_url = _raw_worker_url.strip("`\"' ")
+while _raw_worker_url.startswith("/"):
+    _raw_worker_url = _raw_worker_url[1:]
+_raw_worker_url = _raw_worker_url.rstrip("/")
 if _raw_worker_url and not _raw_worker_url.startswith(("http://", "https://")):
     _raw_worker_url = "https://" + _raw_worker_url
 WORKER_BASE_URL = _raw_worker_url
+
+# One-shot diagnostic log so a CI failure tells us exactly what shape the
+# secret arrived in — without leaking the host (which would be masked anyway).
+# Logs once at module load.
+if os.getenv("CI") or os.getenv("GITHUB_ACTIONS"):
+    import urllib.parse as _urlparse
+    _parsed = _urlparse.urlparse(WORKER_BASE_URL)
+    print(
+        f"[config] WORKER_BASE_URL diagnostics: "
+        f"raw_len={len(os.getenv('WORKER_BASE_URL') or '')} "
+        f"final_len={len(WORKER_BASE_URL)} "
+        f"scheme={_parsed.scheme!r} "
+        f"has_host={bool(_parsed.hostname)} "
+        f"path={_parsed.path!r}",
+        flush=True,
+    )
 WORKER_ADMIN_TOKEN = os.getenv("WORKER_ADMIN_TOKEN") or ""
 WORKER_EXPORT_PAGE_LIMIT = 1000  # max allowed by Cloudflare KV `list`
 
