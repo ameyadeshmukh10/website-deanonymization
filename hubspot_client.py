@@ -241,22 +241,84 @@ def build_properties(bucket: dict[str, Any], visit_count: int) -> dict[str, Any]
 # -----------------------------------------------------------------------------
 # Search / upsert
 # -----------------------------------------------------------------------------
-def fetch_company_visit_count(session: requests.Session, company_id: str) -> int:
-    """Read the current `website_visit_count` from a HubSpot company.
+def fetch_company_state(
+    session: requests.Session, company_id: str,
+) -> tuple[int, str | None]:
+    """Read both `website_visit_count` and `is_icp_fit` in a single GET.
 
-    Returns 0 if the property is absent or non-numeric — keeps the upsert
-    path robust to fresh records or manual edits.
+    Returns (visit_count, is_icp_fit_value). visit_count is 0 if absent or
+    non-numeric. is_icp_fit_value is the raw string ("true" / "false") or
+    None if unset.
     """
     url = f"{config.HUBSPOT_COMPANIES}/{company_id}"
     resp = _request(
-        session, "GET", url, params={"properties": "website_visit_count"}
+        session, "GET", url,
+        params={"properties": "website_visit_count,is_icp_fit"},
     )
     resp.raise_for_status()
-    raw = (resp.json().get("properties") or {}).get("website_visit_count")
+    props = resp.json().get("properties") or {}
+    raw_count = props.get("website_visit_count")
     try:
-        return int(raw) if raw not in (None, "") else 0
+        visit_count = int(raw_count) if raw_count not in (None, "") else 0
     except (TypeError, ValueError):
-        return 0
+        visit_count = 0
+    icp = props.get(config.HUBSPOT_ICP_FIT_PROPERTY)
+    if icp in ("", None):
+        icp = None
+    return visit_count, icp
+
+
+def fetch_company_visit_count(session: requests.Session, company_id: str) -> int:
+    """Backward-compat shim — kept so callers can still ask for just the count."""
+    count, _ = fetch_company_state(session, company_id)
+    return count
+
+
+# -----------------------------------------------------------------------------
+# ICP-fit state file (Part A: manual override detection)
+# -----------------------------------------------------------------------------
+def load_icp_state() -> dict[str, str]:
+    """Load {company_id: last_written_value} state. Empty on first run."""
+    if not config.ICP_FIT_STATE_FILE.exists():
+        return {}
+    try:
+        raw = json.loads(config.ICP_FIT_STATE_FILE.read_text())
+    except json.JSONDecodeError:
+        logger.warning(
+            "%s is malformed; ignoring (manual-override detection degrades to "
+            "value-equality heuristic this run).", config.ICP_FIT_STATE_FILE,
+        )
+        return {}
+    return {str(k): str(v) for k, v in raw.items()}
+
+
+def save_icp_state(state: dict[str, str]) -> None:
+    config.ICP_FIT_STATE_FILE.write_text(
+        json.dumps(state, indent=2, sort_keys=True)
+    )
+    logger.info(
+        "wrote icp-fit state for %d companies to %s",
+        len(state), config.ICP_FIT_STATE_FILE,
+    )
+
+
+def _is_manual_override(
+    existing: str | None, last_written: str | None, computed: str,
+) -> bool:
+    """Decide whether the existing HubSpot value was manually overridden.
+
+    Two cases:
+      - `last_written` is known (we wrote it before): manual override iff
+        existing != last_written.
+      - `last_written` is None (first time we see this company, OR the
+        state file was reset): heuristic — manual override iff existing
+        is set AND differs from what the pipeline would have written.
+    """
+    if existing in (None, ""):
+        return False
+    if last_written is not None:
+        return existing != last_written
+    return existing != computed
 
 
 def find_company_by_domain(session: requests.Session, domain: str) -> str | None:
@@ -459,6 +521,7 @@ def upsert(
     bucket: dict[str, Any],
     *,
     dry_run: bool = False,
+    icp_state: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Upsert one company. Returns a result dict for the run summary.
 
@@ -466,7 +529,15 @@ def upsert(
       - dry_run:   don't touch HubSpot; report current + delta only.
       - create:    no prior history -> write current_visit_count.
       - update:    fetch existing -> write existing + delta_visit_count.
+
+    Manual ICP-fit override protection (Part A):
+      If `icp_state` is provided, we compare the existing HubSpot value
+      against what we last wrote (if known) or what we'd compute now.
+      Any mismatch is treated as a manual override → `is_icp_fit` is
+      stripped from the update payload, leaving the user's value intact.
     """
+    if icp_state is None:
+        icp_state = {}
     domain = bucket["domain"]
     delta = bucket["delta_visit_count"]
     current = bucket["current_visit_count"]
@@ -489,9 +560,28 @@ def upsert(
     pages = sorted(bucket.get("unique_pages") or [])
 
     if existing_id:
-        existing_count = fetch_company_visit_count(session, existing_id)
+        # Fetch both visit_count and existing is_icp_fit in one round-trip.
+        existing_count, existing_icp = fetch_company_state(session, existing_id)
         new_count = existing_count + delta
-        update_company(session, existing_id, build_properties(bucket, visit_count=new_count))
+        props = build_properties(bucket, visit_count=new_count)
+        computed_icp = props.get(config.HUBSPOT_ICP_FIT_PROPERTY)
+        last_written = icp_state.get(str(existing_id))
+
+        icp_action = "updated"
+        if _is_manual_override(existing_icp, last_written, computed_icp):
+            # Don't undo the human edit. Strip is_icp_fit from this PATCH.
+            props.pop(config.HUBSPOT_ICP_FIT_PROPERTY, None)
+            icp_action = "respected_override"
+            logger.info(
+                "manual ICP override on %s (existing=%r, last_written=%r, "
+                "would_have_written=%r) — preserving",
+                domain, existing_icp, last_written, computed_icp,
+            )
+        else:
+            # Pipeline owns this value — record what we just wrote.
+            icp_state[str(existing_id)] = computed_icp
+
+        update_company(session, existing_id, props)
         return {
             "domain": domain,
             "action": "updated",
@@ -501,22 +591,27 @@ def upsert(
             "delta_visit_count": delta,
             "new_visit_count": new_count,
             "is_icp_fit": bool(bucket.get("is_icp_fit")),
+            "is_icp_fit_action": icp_action,
+            "is_icp_fit_existing": existing_icp,
             "name": bucket.get("name"),
             "website_last_visited": last_seen,
             "website_pages_visited": pages,
         }
 
-    created = create_company(
-        session, domain, bucket.get("name"),
-        build_properties(bucket, visit_count=current),
-    )
+    props = build_properties(bucket, visit_count=current)
+    created = create_company(session, domain, bucket.get("name"), props)
+    new_id = created.get("id")
+    computed_icp = props.get(config.HUBSPOT_ICP_FIT_PROPERTY)
+    if new_id and computed_icp is not None:
+        icp_state[str(new_id)] = computed_icp
     return {
         "domain": domain,
         "action": "created",
-        "company_id": created.get("id"),
+        "company_id": new_id,
         "ip_count": len(bucket["ips"]),
         "new_visit_count": current,
         "is_icp_fit": bool(bucket.get("is_icp_fit")),
+        "is_icp_fit_action": "created",
         "name": bucket.get("name"),
         "website_last_visited": last_seen,
         "website_pages_visited": pages,
@@ -584,6 +679,7 @@ def run(
 
     enriched = load_enriched()
     credited = load_credited()
+    icp_state = load_icp_state()
     by_domain = group_by_domain(enriched, credited)
     domains = list(by_domain.values())
     if limit:
@@ -592,14 +688,19 @@ def run(
 
     results: list[dict[str, Any]] = []
     counts = {"updated": 0, "created": 0, "dry_run": 0, "error": 0}
+    overrides_respected = 0
     for bucket in domains:
         try:
-            result = upsert(session, bucket, dry_run=dry_run)
+            result = upsert(
+                session, bucket, dry_run=dry_run, icp_state=icp_state,
+            )
         except Exception as exc:
             logger.exception("upsert failed for %s", bucket["domain"])
             result = {"domain": bucket["domain"], "action": "error", "error": str(exc)}
         results.append(result)
         counts[result["action"]] = counts.get(result["action"], 0) + 1
+        if result.get("is_icp_fit_action") == "respected_override":
+            overrides_respected += 1
 
         # Only credit the IPs once their visit_count has actually been
         # persisted to HubSpot. Failed and dry-run buckets stay un-credited
@@ -608,9 +709,14 @@ def run(
             credited.update(bucket["ip_counts"])
 
     logger.info("hubspot writes: %s", counts)
+    if overrides_respected:
+        logger.info(
+            "respected %d manual ICP override(s) this run", overrides_respected,
+        )
     save_results(results)
     if not dry_run:
         save_credited(credited)
+        save_icp_state(icp_state)
     return results
 
 

@@ -99,6 +99,23 @@ def load_cache() -> dict[str, dict[str, Any]]:
             "dropped %d legacy cache entries (missing person field) — they will "
             "be re-enriched on this run", len(legacy_keys),
         )
+
+    # Second migration: cache entries written before `tags` extraction was
+    # added. Drop matched entries whose company lacks the `tags` field so
+    # the next Step 3 picks up fresh PDL data with tags populated.
+    no_tags_keys = [
+        ip for ip, entry in cache.items()
+        if (entry.get("result") or {}).get("status") == "matched"
+        and isinstance((entry.get("result") or {}).get("company"), dict)
+        and "tags" not in ((entry.get("result") or {}).get("company") or {})
+    ]
+    for ip in no_tags_keys:
+        del cache[ip]
+    if no_tags_keys:
+        logger.info(
+            "dropped %d legacy cache entries (missing tags field) — they will "
+            "be re-enriched on this run", len(no_tags_keys),
+        )
     return cache
 
 
@@ -219,6 +236,10 @@ def _extract_match(
             "confidence": raw_company.get("confidence"),
             "employee_count": raw_company.get("employee_count"),
             "inferred_revenue": raw_company.get("inferred_revenue"),
+            # Tags qualify the broad PDL industry buckets — used by
+            # icp_filter.is_icp_fit to exclude telecoms / ISPs / VoIP / etc.
+            # that get bucketed under "information technology and services".
+            "tags": raw_company.get("tags") or [],
         }
 
     # PDL's person inference — the role/sub_role/levels of the person they

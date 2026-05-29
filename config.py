@@ -117,9 +117,35 @@ ICP_INDUSTRIES: frozenset[str] = frozenset({
     "information technology and services",
 })
 
+# Even when the PDL industry matches ICP_INDUSTRIES, certain `company.tags`
+# values disqualify the company. Examples: telecoms, ISPs, managed services,
+# VoIP, hosting providers — all of which PDL often classifies as
+# `information technology and services` but are clearly not B2B SaaS buyers.
+# Substring match against the lowercased joined tag list (case-insensitive).
+ICP_EXCLUDE_TAG_PATTERNS: frozenset[str] = frozenset({
+    "telecommunications",
+    "voip",
+    "voice and data",
+    "isp",
+    "internet service provider",
+    "hosting",
+    "managed services",
+    "carrier",
+    "telecom",
+    "mobile network",
+    "broadband",
+})
+
 # HubSpot custom company property name. Auto-created on first Step 4 run if
 # missing — see hubspot_client.ensure_icp_property.
 HUBSPOT_ICP_FIT_PROPERTY = "is_icp_fit"
+
+# Tracks the last `is_icp_fit` value the pipeline wrote per HubSpot company,
+# so a manual override (sales flips the value in HubSpot UI) is preserved
+# across future Step 4 runs. Detection rule:
+#   existing HubSpot value differs from what the pipeline last wrote
+#   → assume manual override → skip the is_icp_fit field on this update.
+ICP_FIT_STATE_FILE = DATA_DIR / "icp_fit_state.json"
 
 # --- Step 5: visitor role qualifier -----------------------------------------
 # Substrings (case-insensitive) we look for in PDL's inferred person.role and
