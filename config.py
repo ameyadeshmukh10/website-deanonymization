@@ -167,46 +167,30 @@ PDL_PERSON_CACHE_TTL_DAYS = 7
 # Person Search results are always filtered to US.
 PERSON_SEARCH_COUNTRY = "united states"
 
-# Buying-committee titles we want per ICP company. Each entry is an ES `should`
-# clause; Step 6 ORs them in a single query. Per-result billing; expect 3-12
-# credits per company (most companies populate 5-10 of these clauses).
+# Top-of-org sales leadership phrases only. Each entry is an ES `should`
+# clause; Step 6 ORs them in a single query. Marketing / Demand Gen / GTM
+# leadership dropped per user decision (Round 5) — sales leadership only.
+# All phrase-based to avoid the noise that level+role buckets produced
+# (Regional VPs, sub-segment specialists, etc.).
 TARGET_TITLE_CLAUSES: list[dict] = [
-    # Sales leadership (level + role taxonomy)
-    {"bool": {"must": [
-        {"term": {"job_title_levels": "vp"}},
-        {"term": {"job_title_role": "sales"}},
-    ]}},  # VP Sales
-    {"bool": {"must": [
-        {"term": {"job_title_levels": "cxo"}},
-        {"term": {"job_title_role": "sales"}},
-    ]}},  # CSO etc. via role taxonomy
-    # CRO / CCO by exact phrase — PDL doesn't always tag CRO under role=sales
-    {"bool": {"must": [
-        {"term": {"job_title_levels": "cxo"}},
-        {"match_phrase": {"job_title": "chief revenue officer"}},
-    ]}},
-    {"bool": {"must": [
-        {"term": {"job_title_levels": "cxo"}},
-        {"match_phrase": {"job_title": "chief commercial officer"}},
-    ]}},
-    # Marketing leadership
-    {"bool": {"must": [
-        {"term": {"job_title_levels": "vp"}},
-        {"term": {"job_title_role": "marketing"}},
-    ]}},  # VP Marketing
-    {"bool": {"must": [
-        {"term": {"job_title_levels": "cxo"}},
-        {"term": {"job_title_role": "marketing"}},
-    ]}},  # CMO
-    # "Head of …" — phrase match catches even when PDL didn't tag a level
+    # C-suite (sales / revenue / commercial)
+    {"match_phrase": {"job_title": "chief revenue officer"}},
+    {"match_phrase": {"job_title": "chief sales officer"}},
+    {"match_phrase": {"job_title": "chief commercial officer"}},
+    # Heads of sales / revenue ops
     {"match_phrase": {"job_title": "head of sales"}},
-    {"match_phrase": {"job_title": "head of marketing"}},
-    {"match_phrase": {"job_title": "head of go-to-market"}},
-    {"match_phrase": {"job_title": "head of gtm"}},
-    {"match_phrase": {"job_title": "head of demand generation"}},
     {"match_phrase": {"job_title": "head of revenue operations"}},
-    # Senior+ specialists (RevOps / Demand Gen / GTM) — restrict to
-    # cxo/vp/director per user decision; no IC matches.
+    {"match_phrase": {"job_title": "head of revops"}},
+    # VP Sales — phrase-only (broad level=vp + role=sales caught too much noise)
+    {"match_phrase": {"job_title": "vp sales"}},
+    {"match_phrase": {"job_title": "vp of sales"}},
+    {"match_phrase": {"job_title": "vice president sales"}},
+    {"match_phrase": {"job_title": "vice president of sales"}},
+    {"match_phrase": {"job_title": "senior vice president of sales"}},
+    {"match_phrase": {"job_title": "senior vice president sales"}},
+    {"match_phrase": {"job_title": "svp sales"}},
+    {"match_phrase": {"job_title": "svp of sales"}},
+    # RevOps senior+ specialists — level gated, sales-flavored
     {"bool": {"must": [
         {"terms": {"job_title_levels": ["cxo", "vp", "director"]}},
         {"bool": {"should": [
@@ -214,18 +198,30 @@ TARGET_TITLE_CLAUSES: list[dict] = [
             {"match_phrase": {"job_title": "revops"}},
         ]}},
     ]}},
-    {"bool": {"must": [
-        {"terms": {"job_title_levels": ["cxo", "vp", "director"]}},
-        {"match_phrase": {"job_title": "demand generation"}},
-    ]}},
-    {"bool": {"must": [
-        {"terms": {"job_title_levels": ["cxo", "vp", "director"]}},
-        {"bool": {"should": [
-            {"match_phrase": {"job_title": "go-to-market"}},
-            {"match_phrase": {"job_title": "gtm"}},
-        ]}},
-    ]}},
 ]
+
+# Substrings that disqualify a result even when the inclusion clause matched.
+# Catches regional / sub-segment / channel VPs that PDL labels as `vp sales`
+# but who aren't buying-committee — they're operators or specialists.
+# Applied as `must_not` clauses on PDL Person Search → PDL-side filter, no
+# credits burned on excluded results.
+TITLE_EXCLUDE_PATTERNS: tuple[str, ...] = (
+    # Geo / regional sub-VPs
+    "regional", "area", "north america", "north american", "americas",
+    "emea", "apac", "latam", "international", "asia",
+    "mid west", "midwest", "northwest", "southwest", "southeast",
+    # Channel / sub-segment specialists
+    "carrier", "partner sales", "channel", "strategic accounts",
+    "alliances", "indirect",
+    # Tangential VP titles PDL sometimes buckets as `vp sales` but aren't
+    "enterprise architect", "communications", "product marketing",
+    "field marketing", "small business", "smb", "consumer",
+    "growth strategy", "pre-sales", "sales engineer", "sales support",
+    "sales enablement",
+    # Mid-junior individual contributors (in case any leak through)
+    "account executive", "account manager",
+    "representative", "associate",
+)
 
 PERSON_SEARCH_RESULT_CAP = 20  # max results returned per company query
 

@@ -113,13 +113,18 @@ def _cache_store(
 # Query construction — title-targeted
 # -----------------------------------------------------------------------------
 def _build_query(domain: str) -> dict[str, Any]:
-    """Compose the single ES query: company + US + any target title clause.
+    """Compose the single ES query: company + US + must include a sales-
+    leadership phrase AND must NOT include any sub-segment exclude pattern.
 
     PDL's ES dialect rejects `minimum_should_match`. When a `bool` query
     contains only `should` clauses (no must / filter / must_not at the same
     level), standard ES defaults to requiring at least one to match — PDL
     follows this convention.
     """
+    must_not = [
+        {"match_phrase": {"job_title": pattern}}
+        for pattern in config.TITLE_EXCLUDE_PATTERNS
+    ]
     return {
         "query": {
             "bool": {
@@ -127,7 +132,8 @@ def _build_query(domain: str) -> dict[str, Any]:
                     {"term": {"job_company_website": domain.lower()}},
                     {"term": {"location_country": config.PERSON_SEARCH_COUNTRY}},
                     {"bool": {"should": config.TARGET_TITLE_CLAUSES}},
-                ]
+                ],
+                "must_not": must_not,
             }
         },
         "size": config.PERSON_SEARCH_RESULT_CAP,

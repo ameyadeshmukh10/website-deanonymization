@@ -1,24 +1,22 @@
 """Step 5 — qualify IP-enriched visitors for Person Search.
 
-Reads data/enriched_ips.json. Keeps records where the IP resolved to a
-company AND **either** of these qualifies the visitor:
+Reads data/enriched_ips.json. Keeps records where ALL of:
 
-  Role path:
-    enrichment.person is present, AND
-    any QUALIFYING_ROLE_PATTERN substring (sales, marketing,
-    business_development, gtm, growth, revenue) appears in role/sub_role.
+  1. enrichment.status == "matched" (PDL resolved IP to a company)
+  2. icp_filter.is_icp_fit(record) (industry in ICP_INDUSTRIES, no
+     excluded tag patterns)
+  3. enrichment.person is present AND person.job_title_role is populated
+     (PDL had person-level inference for this IP, not just a company match)
+  4. One of QUALIFYING_ROLE_PATTERNS (sales, marketing, business_development,
+     gtm, growth, revenue) appears in person.job_title_role or sub_role
 
-  Intent path:
-    visit_count >= MIN_VISITS_FOR_INTENT, OR
-    at least one unique_page starts with a HIGH_INTENT_PATH.
-
-The role path is the tighter signal — when PDL has high-confidence person
-inference. The intent path is the fallback that activates the chain when
-PDL doesn't infer a person but the visitor's behavior is strong (multiple
-visits, hit a /sales-ai-workers/* / /pricing / /demo page).
+Round 5: dropped the intent-only fallback path. The pipeline no longer
+de-anonymizes when PDL has no person-level inference. Intent reasons
+(multi-visit / key-page hits) are still computed and stored for context
+on the HubSpot company record, but do NOT gate qualification.
 
 Each qualified record gets a derived `function_area` ("sales", "marketing",
-or "gtm") and `visitor_levels` (empty list when no person inference).
+or "gtm") and `visitor_levels` (PDL-supplied).
 
 Output: data/qualified_visitors.json.
 """
@@ -88,41 +86,46 @@ def classify(
     Gate order:
       1. Status must be `matched` (PDL resolved IP -> company).
       2. Company industry must be in ICP_INDUSTRIES (B2B tech ICP).
-      3. EITHER the role-based qualifier OR the intent-based qualifier must
-         hit — unless `skip_intent_gate=True` (battle-test / --all-ips mode),
-         in which case any matched + ICP visitor qualifies.
+      3. enrichment.person must be present and job_title_role populated
+         (Round 5 — no de-anonymization without person-level inference).
+      4. role/sub_role must hit one of QUALIFYING_ROLE_PATTERNS.
 
-    Non-ICP visitors short-circuit BEFORE the qualifier checks so we never
-    spend Person Search credits on out-of-ICP companies in Step 6.
+    `skip_intent_gate=True` (battle-test / --all-ips mode) bypasses checks
+    3 and 4 — any matched + ICP visitor qualifies.
+
+    Intent reasons (multi-visit / key-page hits) are still computed for
+    context but do NOT gate qualification anymore.
     """
     enrichment = record.get("enrichment") or {}
     if enrichment.get("status") != "matched":
         return None
 
-    # ICP gate — drops non-software / non-IT companies (AbbVie, Corewell, etc.)
+    # ICP gate — drops non-software / non-IT companies + excluded tags
     if not icp_filter.is_icp_fit(record):
         return None
 
-    # Path 1: role-based qualifier (requires PDL person inference)
+    # Person-confidence gate (Round 5): require PDL person inference with
+    # at least a role populated. Intent-only path is removed.
     person = enrichment.get("person") or {}
-    role_hits: list[str] = []
-    if person:
-        role_hits = _matches_qualifier(
-            person.get("job_title_role"), person.get("job_title_sub_role"),
-        )
+    role = person.get("job_title_role") if person else None
+    sub_role = person.get("job_title_sub_role") if person else None
+    role_hits = _matches_qualifier(role, sub_role) if person else []
 
-    # Path 2: intent-based qualifier (works without person inference)
+    # Intent reasons computed for context only (stored on the qualified
+    # record), but no longer required to qualify.
     intent_hits = _intent_hits(record)
 
-    if not skip_intent_gate and not role_hits and not intent_hits:
-        return None
+    if not skip_intent_gate:
+        if not person or not role:
+            return None
+        if not role_hits:
+            return None
 
-    # Function area: prefer role-derived; fall back to "gtm" (union of
-    # sales + marketing in Step 6) when only intent qualified.
+    # Function area is derived from PDL person role. When skip_intent_gate
+    # is on AND no role data exists, default to "gtm" (Step 6 query is the
+    # same regardless of function_area now).
     if role_hits:
-        function_area = derive_function_area(
-            person.get("job_title_role"), person.get("job_title_sub_role"),
-        )
+        function_area = derive_function_area(role, sub_role)
     else:
         function_area = "gtm"
 
@@ -143,29 +146,23 @@ def filter_visitors(
     matched_total = 0
     icp_total = 0
     person_total = 0
-    via_role = via_intent = via_both = 0
     for ip, record in enriched.items():
         enrichment = record.get("enrichment") or {}
         if enrichment.get("status") == "matched":
             matched_total += 1
             if icp_filter.is_icp_fit(record):
                 icp_total += 1
-            if enrichment.get("person"):
+            if (enrichment.get("person") or {}).get("job_title_role"):
                 person_total += 1
         out = classify(record, skip_intent_gate=skip_intent_gate)
         if out is not None:
             qualified[ip] = out
-            r = bool(out.get("role_qualifier_hits"))
-            i = bool(out.get("intent_qualifier_hits"))
-            if r and i: via_both += 1
-            elif r: via_role += 1
-            elif i: via_intent += 1
 
     logger.info(
-        "qualifier: %d qualified (role=%d, intent=%d, both=%d) / %d ICP "
-        "matched / %d matched total / %d had person data",
-        len(qualified), via_role, via_intent, via_both,
-        icp_total, matched_total, person_total,
+        "qualifier: %d qualified / %d ICP matched / %d had person+role / "
+        "%d matched total (gate: status=matched AND ICP AND person.role AND "
+        "role pattern hit)",
+        len(qualified), icp_total, person_total, matched_total,
     )
     return qualified
 
