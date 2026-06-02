@@ -12,7 +12,36 @@ Two halves:
    for high-intent IPs, enriches them via People Data Labs, and upserts the
    resolved companies into HubSpot.
 
+For full architecture details, see [`ARCHITECTURE.md`](ARCHITECTURE.md).
 For the Worker setup, see `cloudflare_deployment_walkthrough.md`.
+
+---
+
+## Customizing this for a new customer
+
+Solutions engineers: open this directory in Claude Code and say:
+
+```
+customize this pipeline for <customer name>
+```
+
+Claude will walk you through a 10–15 minute wizard covering Cloudflare Worker
+deployment, HubSpot connection, Slack webhook, GitHub Actions setup, ICP
+industries, buying-committee titles, exclude patterns, schedule, and end-to-end
+verification.
+
+For ongoing tuning after the initial setup, focused skills handle individual
+knobs — invoke conversationally:
+
+```
+update the buying-committee titles to also include marketing leadership
+change the cron schedule to run every 2 hours
+add manufacturing to the ICP industries
+audit the current configuration for Acme
+```
+
+All 14 skills live in `.claude/skills/` and are auto-discovered when you open
+the repo in Claude Code. See each skill's frontmatter for what triggers it.
 
 ---
 
