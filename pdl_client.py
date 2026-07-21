@@ -456,10 +456,79 @@ def save_enriched(records: dict[str, dict[str, Any]]) -> None:
     logger.info("wrote %d ips to %s", len(records), config.ENRICHED_FILE)
 
 
+def log_icp_industry_diagnostics(enriched: dict[str, dict[str, Any]]) -> None:
+    """Histogram PDL industries among matched companies, split by ICP-gate
+    outcome, so `config.ICP_INDUSTRIES` can be tuned from real PDL labels
+    instead of guesswork.
+
+    Emitted at INFO so it lands in both the CI console and the run-log artifact.
+    Deduplicates to one entry per company domain (many IPs → one company) and,
+    for the excluded companies, separates "industry not in the allowlist"
+    (widening ICP_INDUSTRIES would recover these) from "tag-excluded despite an
+    allowed industry" (the telecom/ISP/hosting filter working as intended).
+    """
+    import icp_filter  # local import keeps this diagnostic self-contained
+
+    seen: dict[str, dict[str, Any]] = {}
+    for record in enriched.values():
+        enr = record.get("enrichment") or {}
+        if enr.get("status") != "matched":
+            continue
+        domain = ((enr.get("company") or {}).get("domain") or "").strip().lower()
+        if domain and domain not in seen:
+            seen[domain] = record
+
+    if not seen:
+        logger.info("icp diagnostics: no matched companies this run")
+        return
+
+    fit = 0
+    excluded_by_industry: dict[str, list[str]] = {}
+    excluded_by_tag: dict[str, int] = {}
+    for domain, record in seen.items():
+        company = (record.get("enrichment") or {}).get("company") or {}
+        industry = company.get("industry")
+        norm = (
+            industry.strip().lower()
+            if isinstance(industry, str) and industry.strip()
+            else "(none)"
+        )
+        if icp_filter.is_icp_fit(record):
+            fit += 1
+        elif norm not in config.ICP_INDUSTRIES:
+            excluded_by_industry.setdefault(norm, []).append(domain)
+        else:
+            excluded_by_tag[norm] = excluded_by_tag.get(norm, 0) + 1
+
+    total_excl_ind = sum(len(v) for v in excluded_by_industry.values())
+    logger.info(
+        "icp diagnostics: %d unique matched companies — %d ICP-fit, "
+        "%d excluded-by-industry, %d excluded-by-tag",
+        len(seen), fit, total_excl_ind, sum(excluded_by_tag.values()),
+    )
+    # The actionable list: which PDL industries the gate is dropping, biggest
+    # first, with a few example domains so real targets are easy to spot.
+    ranked = sorted(
+        excluded_by_industry.items(), key=lambda kv: len(kv[1]), reverse=True
+    )
+    for industry, domains in ranked[:25]:
+        examples = ", ".join(sorted(domains)[:4])
+        logger.info(
+            "icp diagnostics   excluded-by-industry  %4d  %-45s e.g. %s",
+            len(domains), industry, examples,
+        )
+    if excluded_by_tag:
+        logger.info(
+            "icp diagnostics   excluded-by-tag (allowed industry, tag blocked): %s",
+            dict(sorted(excluded_by_tag.items(), key=lambda kv: kv[1], reverse=True)),
+        )
+
+
 def run(*, limit: int | None = None) -> dict[str, dict[str, Any]]:
     high_intent = load_high_intent()
     enriched = enrich_all(high_intent, limit=limit)
     save_enriched(enriched)
+    log_icp_industry_diagnostics(enriched)
     return enriched
 
 
