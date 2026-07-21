@@ -39,7 +39,16 @@ logger = logging.getLogger(__name__)
 
 
 class RetryableHTTPError(Exception):
-    """Raised on 429 / 5xx so tenacity retries."""
+    """Raised on 429 / 5xx so tenacity retries.
+
+    Carries the HTTP status code so a caller handling an *exhausted* retry
+    (tenacity re-raises this after MAX_RETRIES) can tell a rate-limit (429)
+    apart from a server error (5xx).
+    """
+
+    def __init__(self, status_code: int) -> None:
+        self.status_code = status_code
+        super().__init__(f"{status_code} from PDL")
 
 
 def _session() -> requests.Session:
@@ -161,16 +170,32 @@ def _post(session: requests.Session, body: dict[str, Any]) -> requests.Response:
             except (TypeError, ValueError):
                 pass
         logger.warning("person search -> %s, will retry", resp.status_code)
-        raise RetryableHTTPError(f"{resp.status_code} from PDL")
+        raise RetryableHTTPError(resp.status_code)
     return resp
 
 
 def _run_query(
     session: requests.Session, domain: str,
-) -> list[dict[str, Any]]:
-    """Execute the title-targeted query for one domain. Defensive on errors."""
+) -> list[dict[str, Any]] | None:
+    """Execute the title-targeted query for one domain. Defensive on errors.
+
+    Returns a (possibly empty) list of person rows on success, or None if the
+    call failed transiently (retries exhausted on a 429/5xx). None is the
+    "don't cache, retry next run" signal — distinct from [] which is a genuine
+    "no matching people" answer worth caching.
+    """
     body = _build_query(domain)
-    resp = _post(session, body)
+    try:
+        resp = _post(session, body)
+    except RetryableHTTPError as exc:
+        # Retries exhausted (persistent 429/5xx). Don't crash Step 6 and don't
+        # cache — a rate-limited miss must not be mistaken for "no people here"
+        # and stored for PDL_PERSON_CACHE_TTL_DAYS.
+        logger.warning(
+            "person search %s -> %s after %d attempts; skipping (will retry "
+            "next run)", domain, exc.status_code, config.MAX_RETRIES,
+        )
+        return None
     if resp.status_code == 402:
         raise RuntimeError("PDL returned 402 (out of credits). Aborting.")
     if resp.status_code in (401, 403):
@@ -200,9 +225,12 @@ def _run_query(
 # -----------------------------------------------------------------------------
 def search_people_for_company(
     session: requests.Session, domain: str,
-) -> list[dict[str, Any]]:
+) -> list[dict[str, Any]] | None:
     """Run the title-targeted Person Search for one domain. PDL handles
     deduplication within a single query, so no client-side dedupe needed.
+
+    Returns None when the call failed transiently (retries exhausted) so the
+    caller can skip caching and defer the domain to the next run.
     """
     return _run_query(session, domain)
 
@@ -315,6 +343,10 @@ def enrich_all(
 
     out: dict[str, list[dict[str, Any]]] = {}
     cache_hits = cache_misses = 0
+    rate_limit_strikes = 0    # companies whose search 429'd on every retry
+    skipped_rate_limited = 0  # uncached companies skipped after the breaker tripped
+    stop_live_calls = False
+    last_call_at = 0.0
     try:
         for domain, info in items:
             key = _cache_key(domain)
@@ -322,10 +354,35 @@ def enrich_all(
             if cached is not None:
                 cache_hits += 1
                 rows = cached
+            elif stop_live_calls:
+                # Breaker tripped (below): PDL is hard rate-limiting Person
+                # Search, so make no new calls. Cached domains still resolve;
+                # uncached ones wait for the next scheduled run.
+                skipped_rate_limited += 1
+                continue
             else:
+                # Throttle live calls to stay under Person Search's 10/min cap.
+                wait = config.PDL_PERSON_MIN_INTERVAL_SEC - (time.monotonic() - last_call_at)
+                if wait > 0:
+                    time.sleep(wait)
                 rows = search_people_for_company(session, domain)
-                _cache_store(cache, key, rows)
+                last_call_at = time.monotonic()
                 cache_misses += 1
+                if rows is None:
+                    # Transient failure (retries exhausted). Don't cache; count
+                    # a strike and, after enough of them, stop hammering PDL so
+                    # the run finishes inside its timeout and resumes next run.
+                    rate_limit_strikes += 1
+                    if rate_limit_strikes >= config.PDL_RATE_LIMIT_MAX_STRIKES:
+                        stop_live_calls = True
+                        logger.warning(
+                            "PDL hard rate-limited Person Search on %d companies; "
+                            "halting live lookups for this run. Cached domains "
+                            "still resolve; the rest are deferred to the next "
+                            "scheduled run.", rate_limit_strikes,
+                        )
+                    continue
+                _cache_store(cache, key, rows)
 
             people = [_shape_person(row, domain) for row in rows]
             out[domain] = people
@@ -333,6 +390,11 @@ def enrich_all(
             save_cache(cache)  # incremental
     finally:
         save_cache(cache)
+    if skipped_rate_limited:
+        logger.warning(
+            "skipped %d uncached companies because PDL was rate limiting; they "
+            "will be looked up on the next scheduled run", skipped_rate_limited,
+        )
     logger.info(
         "person search cache: %d hits, %d misses", cache_hits, cache_misses,
     )

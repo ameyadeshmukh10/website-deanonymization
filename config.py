@@ -103,9 +103,11 @@ PDL_IP_ENDPOINT = "https://api.peopledatalabs.com/v5/ip/enrich"
 PDL_CACHE_FILE = DATA_DIR / "pdl_cache.json"
 PDL_CACHE_TTL_MATCHED_DAYS = 7
 PDL_CACHE_TTL_NEGATIVE_DAYS = 1
-# Min seconds between PDL calls to stay under their per-second rate limit.
-# 12 req/s caused a 429 mid-batch; 0.12s = ~8 req/s keeps comfortable headroom.
-PDL_MIN_INTERVAL_SEC = 0.12
+# Min seconds between PDL IP-enrichment calls. The IP Enrichment API is capped
+# at 100 requests/minute; the old 0.12s (~500/min) blew that quota in ~12s and
+# got the batch 429'd. 0.6s gives an effective ~70-85/min once request latency
+# is added on top — safely under 100 with headroom for window-boundary bursts.
+PDL_MIN_INTERVAL_SEC = 0.6
 # Circuit breaker for sustained PDL rate limiting. When this many IPs each
 # return 429 on *all* MAX_RETRIES attempts, PDL's per-minute quota is clearly
 # exhausted, so Step 3 stops making new calls for the rest of the run rather
@@ -170,6 +172,12 @@ QUALIFYING_ROLE_PATTERNS: tuple[str, ...] = (
 PDL_PERSON_SEARCH_ENDPOINT = "https://api.peopledatalabs.com/v5/person/search"
 PDL_PERSON_CACHE_FILE = DATA_DIR / "pdl_person_cache.json"
 PDL_PERSON_CACHE_TTL_DAYS = 7
+# Min seconds between PDL Person Search calls. The Person Search API is capped
+# at 10 requests/minute (much tighter than IP enrichment). 7s between live
+# calls yields ~8/min once request latency is added — under 10 with headroom.
+# Person Search is low-volume (one call per qualified ICP company, mostly cache
+# hits), so the conservative pace costs little.
+PDL_PERSON_MIN_INTERVAL_SEC = 7.0
 
 # Person Search results are always filtered to US.
 PERSON_SEARCH_COUNTRY = "united states"
