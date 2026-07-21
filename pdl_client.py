@@ -405,6 +405,17 @@ def enrich_all(
                             rate_limit_strikes, config.MAX_RETRIES, i, len(items),
                         )
 
+                # Per-run live-call budget: bounds a cold-cache backlog so the
+                # run finishes green (and saves its cache) within the job's
+                # timeout; remaining uncached IPs resume next run.
+                if not stop_live_calls and cache_misses >= config.PDL_MAX_LIVE_CALLS_PER_RUN:
+                    stop_live_calls = True
+                    logger.warning(
+                        "reached per-run live PDL call budget (%d) at %d/%d IPs; "
+                        "deferring the remaining uncached IPs to the next run",
+                        config.PDL_MAX_LIVE_CALLS_PER_RUN, i, len(items),
+                    )
+
             merged = dict(record)
             merged["enrichment"] = result
             out[ip] = merged
@@ -428,8 +439,9 @@ def enrich_all(
         save_cache(cache)
     if skipped_rate_limited:
         logger.warning(
-            "skipped %d uncached IPs because PDL was rate limiting; they will "
-            "be enriched on the next scheduled run", skipped_rate_limited,
+            "skipped %d uncached IPs (per-run budget reached or PDL rate "
+            "limiting); they will be enriched on the next scheduled run",
+            skipped_rate_limited,
         )
     logger.info(
         "pdl cache: %d hits, %d misses (%.0f%% hit rate)",

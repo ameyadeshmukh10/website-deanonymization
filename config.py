@@ -119,6 +119,13 @@ PDL_MIN_INTERVAL_SEC = 0.6
 # with whatever it has; the next scheduled run resumes (Step 3 is resumable via
 # the on-disk PDL cache).
 PDL_RATE_LIMIT_MAX_STRIKES = 5
+# Per-run budget on *live* (uncached) PDL IP calls. Bounds each run so a cold
+# cache — e.g. after an outage expires every entry, leaving thousands of IPs to
+# re-enrich — drains across several green runs instead of timing out a single
+# job. When the budget is hit the run stops making new calls, finishes with
+# what it has, saves its cache, and the next scheduled run resumes. Sized to
+# fit Step 3 comfortably inside the job's wall-clock timeout at ~0.6s/call.
+PDL_MAX_LIVE_CALLS_PER_RUN = 1200
 
 # --- ICP industry gate (Steps 4 + 5) ----------------------------------------
 # PDL company.industry values that count as B2B tech ICP. Companies outside
@@ -190,6 +197,10 @@ PDL_PERSON_CACHE_TTL_DAYS = 7
 # Person Search is low-volume (one call per qualified ICP company, mostly cache
 # hits), so the conservative pace costs little.
 PDL_PERSON_MIN_INTERVAL_SEC = 7.0
+# Per-run budget on live (uncached) Person Search calls — same cold-cache
+# drain rationale as PDL_MAX_LIVE_CALLS_PER_RUN, but tighter because the 10/min
+# cap makes each call slow (~7s). Remaining companies resume next run.
+PDL_PERSON_MAX_LIVE_CALLS_PER_RUN = 80
 
 # Person Search results are always filtered to US.
 PERSON_SEARCH_COUNTRY = "united states"

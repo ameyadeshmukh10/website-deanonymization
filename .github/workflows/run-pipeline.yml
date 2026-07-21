@@ -30,7 +30,10 @@ permissions:
 jobs:
   pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Headroom for the per-run PDL budgets (Step 3 ~17m + Step 6 ~9m) plus the
+    # worker pull and HubSpot writes. Warm-cache runs finish in a few minutes;
+    # this ceiling only matters while a cold-cache backlog is draining.
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4

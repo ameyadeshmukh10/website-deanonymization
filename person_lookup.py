@@ -368,6 +368,16 @@ def enrich_all(
                 rows = search_people_for_company(session, domain)
                 last_call_at = time.monotonic()
                 cache_misses += 1
+                # Per-run live-call budget: bounds a cold-cache backlog so the
+                # run finishes within the job timeout; the current company is
+                # still processed, remaining ones resume next run.
+                if not stop_live_calls and cache_misses >= config.PDL_PERSON_MAX_LIVE_CALLS_PER_RUN:
+                    stop_live_calls = True
+                    logger.warning(
+                        "reached per-run live Person Search budget (%d); "
+                        "deferring remaining companies to the next run",
+                        config.PDL_PERSON_MAX_LIVE_CALLS_PER_RUN,
+                    )
                 if rows is None:
                     # Transient failure (retries exhausted). Don't cache; count
                     # a strike and, after enough of them, stop hammering PDL so
@@ -392,8 +402,9 @@ def enrich_all(
         save_cache(cache)
     if skipped_rate_limited:
         logger.warning(
-            "skipped %d uncached companies because PDL was rate limiting; they "
-            "will be looked up on the next scheduled run", skipped_rate_limited,
+            "skipped %d uncached companies (per-run budget reached or PDL rate "
+            "limiting); they will be looked up on the next scheduled run",
+            skipped_rate_limited,
         )
     logger.info(
         "person search cache: %d hits, %d misses", cache_hits, cache_misses,
