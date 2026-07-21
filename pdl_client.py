@@ -484,6 +484,7 @@ def log_icp_industry_diagnostics(enriched: dict[str, dict[str, Any]]) -> None:
 
     fit = 0
     excluded_by_industry: dict[str, list[str]] = {}
+    excluded_by_size: list[str] = []
     excluded_by_tag: dict[str, int] = {}
     for domain, record in seen.items():
         company = (record.get("enrichment") or {}).get("company") or {}
@@ -493,19 +494,29 @@ def log_icp_industry_diagnostics(enriched: dict[str, dict[str, Any]]) -> None:
             if isinstance(industry, str) and industry.strip()
             else "(none)"
         )
-        if icp_filter.is_icp_fit(record):
+        reason = icp_filter.icp_exclusion_reason(record)
+        if reason is None:
             fit += 1
-        elif norm not in config.ICP_INDUSTRIES:
+        elif reason == "industry":
             excluded_by_industry.setdefault(norm, []).append(domain)
-        else:
+        elif reason == "size":
+            excluded_by_size.append(domain)
+        else:  # tag
             excluded_by_tag[norm] = excluded_by_tag.get(norm, 0) + 1
 
     total_excl_ind = sum(len(v) for v in excluded_by_industry.values())
     logger.info(
         "icp diagnostics: %d unique matched companies — %d ICP-fit, "
-        "%d excluded-by-industry, %d excluded-by-tag",
-        len(seen), fit, total_excl_ind, sum(excluded_by_tag.values()),
+        "%d excluded-by-industry, %d excluded-by-size, %d excluded-by-tag",
+        len(seen), fit, total_excl_ind, len(excluded_by_size),
+        sum(excluded_by_tag.values()),
     )
+    if excluded_by_size:
+        logger.info(
+            "icp diagnostics   excluded-by-size (> %d employees)  %4d  e.g. %s",
+            config.ICP_MAX_EMPLOYEES, len(excluded_by_size),
+            ", ".join(sorted(excluded_by_size)[:6]),
+        )
     # The actionable list: which PDL industries the gate is dropping, biggest
     # first, with a few example domains so real targets are easy to spot.
     ranked = sorted(

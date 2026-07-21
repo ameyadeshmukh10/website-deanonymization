@@ -149,6 +149,14 @@ ICP_EXCLUDE_TAG_PATTERNS: frozenset[str] = frozenset({
     "broadband",
 })
 
+# Size ceiling for ICP. Companies larger than this are treated as non-ICP
+# (is_icp_fit=false) — enterprise giants (Amazon, IBM, PwC, ...) aren't
+# realistic buyers for this product. Applied in icp_filter after the industry
+# and tag gates, using PDL's company.employee_count and falling back to the
+# `size` bucket's lower bound. Companies with unknown size are NOT excluded
+# (PDL reliably sizes the large companies this is meant to catch).
+ICP_MAX_EMPLOYEES = 5000
+
 # HubSpot custom company property name. Auto-created on first Step 4 run if
 # missing — see hubspot_client.ensure_icp_property.
 HUBSPOT_ICP_FIT_PROPERTY = "is_icp_fit"
