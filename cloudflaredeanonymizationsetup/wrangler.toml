@@ -34,9 +34,11 @@ id = "b8ae0eb4b7bd4dcdafe9e138d74964a9"
 
 # --- Non-secret vars (safe to commit) ------------------------------------
 [vars]
-# The site origin allowed to POST to /collect. Use exact origin in prod.
-# For local dev with file:// or http://localhost you can temporarily set "*".
-ALLOWED_ORIGIN = "https://everworker.ai"
+# Site origin(s) allowed to POST to /collect. Single origin, or a
+# comma-separated allowlist to cover apex + www (the Worker reflects whichever
+# origin the request actually comes from). Use exact origins in prod: scheme +
+# host, no trailing slash, no path. For local dev you can temporarily set "*".
+ALLOWED_ORIGIN = "https://everworker.ai,https://www.everworker.ai"
 
 # HubSpot Custom Behavioral Event internal name. Must match the event you
 # create in HubSpot (Settings → Data Management → Custom Events). Requires

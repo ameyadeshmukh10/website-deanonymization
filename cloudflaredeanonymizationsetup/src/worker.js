@@ -63,7 +63,7 @@ export default {
 
     // CORS preflight
     if (request.method === "OPTIONS") {
-      return corsResponse(env, null, 204);
+      return corsResponse(env, null, 204, request);
     }
 
     try {
@@ -90,12 +90,12 @@ export default {
 async function handleCollect(request, env, ctx) {
   const ip = request.headers.get("CF-Connecting-IP");
   if (!ip) {
-    return corsResponse(env, { error: "no_ip" }, 400);
+    return corsResponse(env, { error: "no_ip" }, 400, request);
   }
 
   // Filter private / reserved IPs early
   if (isPrivateIp(ip)) {
-    return corsResponse(env, { ignored: "private_ip" }, 200);
+    return corsResponse(env, { ignored: "private_ip" }, 200, request);
   }
 
   // --- Cloudflare-signal drops ---------------------------------------------
@@ -107,7 +107,7 @@ async function handleCollect(request, env, ctx) {
   if (asOrg && DATACENTER_AS_PATTERN.test(asOrg)) {
     console.log(`drop datacenter_asn ip=${ip} as="${asOrg}"`);
     return corsResponse(
-      env, { ignored: "datacenter_asn", as: asOrg }, 200,
+      env, { ignored: "datacenter_asn", as: asOrg }, 200, request,
     );
   }
 
@@ -115,7 +115,7 @@ async function handleCollect(request, env, ctx) {
   if (threatScore > MAX_THREAT_SCORE) {
     console.log(`drop high_threat_score ip=${ip} score=${threatScore}`);
     return corsResponse(
-      env, { ignored: "high_threat_score", score: threatScore }, 200,
+      env, { ignored: "high_threat_score", score: threatScore }, 200, request,
     );
   }
 
@@ -123,19 +123,19 @@ async function handleCollect(request, env, ctx) {
   // even when their UA doesn't match BOT_REGEX (e.g. spoofed Chrome UA).
   if (cf.botManagement && cf.botManagement.verifiedBot) {
     console.log(`drop verified_bot ip=${ip} as="${asOrg}"`);
-    return corsResponse(env, { ignored: "verified_bot" }, 200);
+    return corsResponse(env, { ignored: "verified_bot" }, 200, request);
   }
 
   let body;
   try {
     body = await request.json();
   } catch {
-    return corsResponse(env, { error: "invalid_json" }, 400);
+    return corsResponse(env, { error: "invalid_json" }, 400, request);
   }
 
   const pageUrl = typeof body.url === "string" ? body.url : null;
   if (!pageUrl) {
-    return corsResponse(env, { error: "missing_url" }, 400);
+    return corsResponse(env, { error: "missing_url" }, 400, request);
   }
 
   const pagePath = typeof body.path === "string" ? body.path : safePath(pageUrl);
@@ -151,7 +151,7 @@ async function handleCollect(request, env, ctx) {
 
   // Drop obvious bots based on UA
   if (BOT_REGEX.test(userAgent)) {
-    return corsResponse(env, { ignored: "bot" }, 200);
+    return corsResponse(env, { ignored: "bot" }, 200, request);
   }
 
   // Read-modify-write the per-IP record
@@ -240,7 +240,7 @@ async function handleCollect(request, env, ctx) {
     );
   }
 
-  return corsResponse(env, { ok: true }, 200);
+  return corsResponse(env, { ok: true }, 200, request);
 }
 
 // -----------------------------------------------------------------------------
@@ -334,13 +334,30 @@ function jsonResponse(obj, status = 200, extraHeaders = {}) {
   });
 }
 
-function corsResponse(env, obj, status = 200) {
-  const origin = env.ALLOWED_ORIGIN || "*";
+// ALLOWED_ORIGIN may be a single origin or a comma-separated allowlist
+// (e.g. "https://everworker.ai,https://www.everworker.ai"). The
+// Access-Control-Allow-Origin header can only carry ONE origin, so we reflect
+// the request's Origin when it's in the allowlist. `Vary: Origin` stops any
+// cache from serving one origin's CORS headers to another.
+function allowedOrigin(env, request) {
+  const configured = (env.ALLOWED_ORIGIN || "*")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (configured.length === 0 || configured.includes("*")) return "*";
+  const reqOrigin = request && request.headers.get("Origin");
+  if (reqOrigin && configured.includes(reqOrigin)) return reqOrigin;
+  return configured[0]; // safe default when Origin is absent / unlisted
+}
+
+function corsResponse(env, obj, status = 200, request = null) {
+  const origin = allowedOrigin(env, request);
   const headers = {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Max-Age": "86400",
+    "Vary": "Origin",
   };
   if (obj === null) {
     return new Response(null, { status, headers });
