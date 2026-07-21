@@ -98,11 +98,15 @@ PDL_IP_ENDPOINT = "https://api.peopledatalabs.com/v5/ip/enrich"
 # PDL IP API supports both IPv4 and IPv6. Use GET with ?ip=<ip>; POST is 405.
 
 # Cache PDL responses keyed by IP. Different TTLs by outcome — a `matched`
-# company assignment is stable for days; a `no_match` or `ineligible` might
-# resolve sooner as PDL improves its IP-to-company graph.
+# company assignment is stable for days; `no_match`/`ineligible` results are
+# even stickier (ineligible = hosting/proxy/VPN/Tor IPs that are effectively
+# permanent; no_match = residential/unknown IPs that rarely resolve). A 1-day
+# negative TTL re-billed ~10k dead IPs *daily* against the 100/min quota, which
+# the 30-min job can't keep up with — 7 days matches the matched TTL and cuts
+# that churn ~7x while barely affecting freshness.
 PDL_CACHE_FILE = DATA_DIR / "pdl_cache.json"
 PDL_CACHE_TTL_MATCHED_DAYS = 7
-PDL_CACHE_TTL_NEGATIVE_DAYS = 1
+PDL_CACHE_TTL_NEGATIVE_DAYS = 7
 # Min seconds between PDL IP-enrichment calls. The IP Enrichment API is capped
 # at 100 requests/minute; the old 0.12s (~500/min) blew that quota in ~12s and
 # got the batch 429'd. 0.6s gives an effective ~70-85/min once request latency
