@@ -106,6 +106,13 @@ PDL_CACHE_TTL_NEGATIVE_DAYS = 1
 # Min seconds between PDL calls to stay under their per-second rate limit.
 # 12 req/s caused a 429 mid-batch; 0.12s = ~8 req/s keeps comfortable headroom.
 PDL_MIN_INTERVAL_SEC = 0.12
+# Circuit breaker for sustained PDL rate limiting. When this many IPs each
+# return 429 on *all* MAX_RETRIES attempts, PDL's per-minute quota is clearly
+# exhausted, so Step 3 stops making new calls for the rest of the run rather
+# than burning the job's wall-clock timeout on a closed door. The run finishes
+# with whatever it has; the next scheduled run resumes (Step 3 is resumable via
+# the on-disk PDL cache).
+PDL_RATE_LIMIT_MAX_STRIKES = 5
 
 # --- ICP industry gate (Steps 4 + 5) ----------------------------------------
 # PDL company.industry values that count as B2B tech ICP. Companies outside

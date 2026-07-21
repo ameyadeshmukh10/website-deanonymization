@@ -164,7 +164,16 @@ def _cache_store(
 
 
 class RetryableHTTPError(Exception):
-    """Raised on 429 / 5xx so tenacity retries."""
+    """Raised on 429 / 5xx so tenacity retries.
+
+    Carries the HTTP status code so a caller handling an *exhausted* retry
+    (tenacity re-raises this after MAX_RETRIES) can tell a rate-limit (429)
+    apart from a server error (5xx).
+    """
+
+    def __init__(self, status_code: int) -> None:
+        self.status_code = status_code
+        super().__init__(f"{status_code} from PDL")
 
 
 def _session() -> requests.Session:
@@ -201,7 +210,7 @@ def _call_pdl(session: requests.Session, ip: str) -> requests.Response:
                 pass
         else:
             logger.warning("PDL %s -> %s, will retry", ip, resp.status_code)
-        raise RetryableHTTPError(f"{resp.status_code} from PDL")
+        raise RetryableHTTPError(resp.status_code)
     return resp
 
 
@@ -264,9 +273,26 @@ def _extract_match(
 
 
 def enrich_ip(session: requests.Session, ip: str) -> dict[str, Any]:
-    """Call PDL for one IP. Returns a status dict; never raises on a clean miss."""
+    """Call PDL for one IP. Returns a status dict; never raises on a clean miss
+    or on exhausted retries."""
     try:
         resp = _call_pdl(session, ip)
+    except RetryableHTTPError as exc:
+        # Retries were exhausted on a 429/5xx (tenacity re-raises here after
+        # MAX_RETRIES). A single persistently rate-limited or flaky IP must not
+        # crash the whole run — Step 3 is a cache-backed, resumable job. Mark it
+        # errored (error results aren't cached, so it's retried next run) and
+        # let the caller keep going. `rate_limited` lets enrich_all's circuit
+        # breaker notice sustained throttling.
+        logger.warning(
+            "PDL %s -> %s after %d attempts; skipping this IP",
+            ip, exc.status_code, config.MAX_RETRIES,
+        )
+        return {
+            "status": "error",
+            "http_status": exc.status_code,
+            "rate_limited": exc.status_code == 429,
+        }
     except requests.exceptions.RequestException as exc:
         logger.error("PDL request failed for %s: %s", ip, exc)
         return {"status": "error", "error": str(exc)}
@@ -336,6 +362,9 @@ def enrich_all(
     out: dict[str, dict[str, Any]] = {}
     matched = no_match = errored = 0
     cache_hits = cache_misses = 0
+    rate_limit_strikes = 0    # IPs that returned 429 on every retry
+    skipped_rate_limited = 0  # uncached IPs skipped after the breaker tripped
+    stop_live_calls = False
     last_call_at = 0.0
     try:
         for i, (ip, record) in enumerate(items, 1):
@@ -343,6 +372,12 @@ def enrich_all(
             if cached is not None:
                 result = cached
                 cache_hits += 1
+            elif stop_live_calls:
+                # Breaker tripped (below): PDL is hard rate-limiting us, so make
+                # no new calls. Cached IPs still flow through above; uncached
+                # ones are left for the next scheduled run.
+                skipped_rate_limited += 1
+                continue
             else:
                 # Throttle live calls so we don't trip PDL's per-second limit.
                 wait = config.PDL_MIN_INTERVAL_SEC - (time.monotonic() - last_call_at)
@@ -352,6 +387,23 @@ def enrich_all(
                 last_call_at = time.monotonic()
                 _cache_store(cache, ip, result)
                 cache_misses += 1
+
+                # Circuit breaker. A `rate_limited` result means PDL returned
+                # 429 on all MAX_RETRIES attempts for this IP — a strong sign
+                # its per-minute quota is exhausted. After a few of these, stop
+                # making new calls so the run stays inside its wall-clock
+                # timeout and the next scheduled run can resume.
+                if result.get("rate_limited"):
+                    rate_limit_strikes += 1
+                    if rate_limit_strikes >= config.PDL_RATE_LIMIT_MAX_STRIKES:
+                        stop_live_calls = True
+                        logger.warning(
+                            "PDL hard rate-limited %d IPs (429 after %d retries "
+                            "each); halting live enrichment for this run at "
+                            "%d/%d IPs. Cached IPs still process; the rest are "
+                            "deferred to the next scheduled run.",
+                            rate_limit_strikes, config.MAX_RETRIES, i, len(items),
+                        )
 
             merged = dict(record)
             merged["enrichment"] = result
@@ -374,6 +426,11 @@ def enrich_all(
         # Always persist whatever we cached this run, even if the loop above
         # blew up — that's the whole point of the cache.
         save_cache(cache)
+    if skipped_rate_limited:
+        logger.warning(
+            "skipped %d uncached IPs because PDL was rate limiting; they will "
+            "be enriched on the next scheduled run", skipped_rate_limited,
+        )
     logger.info(
         "pdl cache: %d hits, %d misses (%.0f%% hit rate)",
         cache_hits, cache_misses,
