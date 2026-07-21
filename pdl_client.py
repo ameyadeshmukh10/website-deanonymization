@@ -164,7 +164,16 @@ def _cache_store(
 
 
 class RetryableHTTPError(Exception):
-    """Raised on 429 / 5xx so tenacity retries."""
+    """Raised on 429 / 5xx so tenacity retries.
+
+    Carries the HTTP status code so a caller handling an *exhausted* retry
+    (tenacity re-raises this after MAX_RETRIES) can tell a rate-limit (429)
+    apart from a server error (5xx).
+    """
+
+    def __init__(self, status_code: int) -> None:
+        self.status_code = status_code
+        super().__init__(f"{status_code} from PDL")
 
 
 def _session() -> requests.Session:
@@ -201,7 +210,7 @@ def _call_pdl(session: requests.Session, ip: str) -> requests.Response:
                 pass
         else:
             logger.warning("PDL %s -> %s, will retry", ip, resp.status_code)
-        raise RetryableHTTPError(f"{resp.status_code} from PDL")
+        raise RetryableHTTPError(resp.status_code)
     return resp
 
 
@@ -264,9 +273,26 @@ def _extract_match(
 
 
 def enrich_ip(session: requests.Session, ip: str) -> dict[str, Any]:
-    """Call PDL for one IP. Returns a status dict; never raises on a clean miss."""
+    """Call PDL for one IP. Returns a status dict; never raises on a clean miss
+    or on exhausted retries."""
     try:
         resp = _call_pdl(session, ip)
+    except RetryableHTTPError as exc:
+        # Retries were exhausted on a 429/5xx (tenacity re-raises here after
+        # MAX_RETRIES). A single persistently rate-limited or flaky IP must not
+        # crash the whole run — Step 3 is a cache-backed, resumable job. Mark it
+        # errored (error results aren't cached, so it's retried next run) and
+        # let the caller keep going. `rate_limited` lets enrich_all's circuit
+        # breaker notice sustained throttling.
+        logger.warning(
+            "PDL %s -> %s after %d attempts; skipping this IP",
+            ip, exc.status_code, config.MAX_RETRIES,
+        )
+        return {
+            "status": "error",
+            "http_status": exc.status_code,
+            "rate_limited": exc.status_code == 429,
+        }
     except requests.exceptions.RequestException as exc:
         logger.error("PDL request failed for %s: %s", ip, exc)
         return {"status": "error", "error": str(exc)}
@@ -336,6 +362,9 @@ def enrich_all(
     out: dict[str, dict[str, Any]] = {}
     matched = no_match = errored = 0
     cache_hits = cache_misses = 0
+    rate_limit_strikes = 0    # IPs that returned 429 on every retry
+    skipped_rate_limited = 0  # uncached IPs skipped after the breaker tripped
+    stop_live_calls = False
     last_call_at = 0.0
     try:
         for i, (ip, record) in enumerate(items, 1):
@@ -343,6 +372,12 @@ def enrich_all(
             if cached is not None:
                 result = cached
                 cache_hits += 1
+            elif stop_live_calls:
+                # Breaker tripped (below): PDL is hard rate-limiting us, so make
+                # no new calls. Cached IPs still flow through above; uncached
+                # ones are left for the next scheduled run.
+                skipped_rate_limited += 1
+                continue
             else:
                 # Throttle live calls so we don't trip PDL's per-second limit.
                 wait = config.PDL_MIN_INTERVAL_SEC - (time.monotonic() - last_call_at)
@@ -352,6 +387,34 @@ def enrich_all(
                 last_call_at = time.monotonic()
                 _cache_store(cache, ip, result)
                 cache_misses += 1
+
+                # Circuit breaker. A `rate_limited` result means PDL returned
+                # 429 on all MAX_RETRIES attempts for this IP — a strong sign
+                # its per-minute quota is exhausted. After a few of these, stop
+                # making new calls so the run stays inside its wall-clock
+                # timeout and the next scheduled run can resume.
+                if result.get("rate_limited"):
+                    rate_limit_strikes += 1
+                    if rate_limit_strikes >= config.PDL_RATE_LIMIT_MAX_STRIKES:
+                        stop_live_calls = True
+                        logger.warning(
+                            "PDL hard rate-limited %d IPs (429 after %d retries "
+                            "each); halting live enrichment for this run at "
+                            "%d/%d IPs. Cached IPs still process; the rest are "
+                            "deferred to the next scheduled run.",
+                            rate_limit_strikes, config.MAX_RETRIES, i, len(items),
+                        )
+
+                # Per-run live-call budget: bounds a cold-cache backlog so the
+                # run finishes green (and saves its cache) within the job's
+                # timeout; remaining uncached IPs resume next run.
+                if not stop_live_calls and cache_misses >= config.PDL_MAX_LIVE_CALLS_PER_RUN:
+                    stop_live_calls = True
+                    logger.warning(
+                        "reached per-run live PDL call budget (%d) at %d/%d IPs; "
+                        "deferring the remaining uncached IPs to the next run",
+                        config.PDL_MAX_LIVE_CALLS_PER_RUN, i, len(items),
+                    )
 
             merged = dict(record)
             merged["enrichment"] = result
@@ -374,6 +437,12 @@ def enrich_all(
         # Always persist whatever we cached this run, even if the loop above
         # blew up — that's the whole point of the cache.
         save_cache(cache)
+    if skipped_rate_limited:
+        logger.warning(
+            "skipped %d uncached IPs (per-run budget reached or PDL rate "
+            "limiting); they will be enriched on the next scheduled run",
+            skipped_rate_limited,
+        )
     logger.info(
         "pdl cache: %d hits, %d misses (%.0f%% hit rate)",
         cache_hits, cache_misses,
@@ -399,10 +468,90 @@ def save_enriched(records: dict[str, dict[str, Any]]) -> None:
     logger.info("wrote %d ips to %s", len(records), config.ENRICHED_FILE)
 
 
+def log_icp_industry_diagnostics(enriched: dict[str, dict[str, Any]]) -> None:
+    """Histogram PDL industries among matched companies, split by ICP-gate
+    outcome, so `config.ICP_INDUSTRIES` can be tuned from real PDL labels
+    instead of guesswork.
+
+    Emitted at INFO so it lands in both the CI console and the run-log artifact.
+    Deduplicates to one entry per company domain (many IPs → one company) and,
+    for the excluded companies, separates "industry not in the allowlist"
+    (widening ICP_INDUSTRIES would recover these) from "tag-excluded despite an
+    allowed industry" (the telecom/ISP/hosting filter working as intended).
+    """
+    import icp_filter  # local import keeps this diagnostic self-contained
+
+    seen: dict[str, dict[str, Any]] = {}
+    for record in enriched.values():
+        enr = record.get("enrichment") or {}
+        if enr.get("status") != "matched":
+            continue
+        domain = ((enr.get("company") or {}).get("domain") or "").strip().lower()
+        if domain and domain not in seen:
+            seen[domain] = record
+
+    if not seen:
+        logger.info("icp diagnostics: no matched companies this run")
+        return
+
+    fit = 0
+    excluded_by_industry: dict[str, list[str]] = {}
+    excluded_by_size: list[str] = []
+    excluded_by_tag: dict[str, int] = {}
+    for domain, record in seen.items():
+        company = (record.get("enrichment") or {}).get("company") or {}
+        industry = company.get("industry")
+        norm = (
+            industry.strip().lower()
+            if isinstance(industry, str) and industry.strip()
+            else "(none)"
+        )
+        reason = icp_filter.icp_exclusion_reason(record)
+        if reason is None:
+            fit += 1
+        elif reason == "industry":
+            excluded_by_industry.setdefault(norm, []).append(domain)
+        elif reason == "size":
+            excluded_by_size.append(domain)
+        else:  # tag
+            excluded_by_tag[norm] = excluded_by_tag.get(norm, 0) + 1
+
+    total_excl_ind = sum(len(v) for v in excluded_by_industry.values())
+    logger.info(
+        "icp diagnostics: %d unique matched companies — %d ICP-fit, "
+        "%d excluded-by-industry, %d excluded-by-size, %d excluded-by-tag",
+        len(seen), fit, total_excl_ind, len(excluded_by_size),
+        sum(excluded_by_tag.values()),
+    )
+    if excluded_by_size:
+        logger.info(
+            "icp diagnostics   excluded-by-size (> %d employees)  %4d  e.g. %s",
+            config.ICP_MAX_EMPLOYEES, len(excluded_by_size),
+            ", ".join(sorted(excluded_by_size)[:6]),
+        )
+    # The actionable list: which PDL industries the gate is dropping, biggest
+    # first, with a few example domains so real targets are easy to spot.
+    ranked = sorted(
+        excluded_by_industry.items(), key=lambda kv: len(kv[1]), reverse=True
+    )
+    for industry, domains in ranked[:25]:
+        examples = ", ".join(sorted(domains)[:4])
+        logger.info(
+            "icp diagnostics   excluded-by-industry  %4d  %-45s e.g. %s",
+            len(domains), industry, examples,
+        )
+    if excluded_by_tag:
+        logger.info(
+            "icp diagnostics   excluded-by-tag (allowed industry, tag blocked): %s",
+            dict(sorted(excluded_by_tag.items(), key=lambda kv: kv[1], reverse=True)),
+        )
+
+
 def run(*, limit: int | None = None) -> dict[str, dict[str, Any]]:
     high_intent = load_high_intent()
     enriched = enrich_all(high_intent, limit=limit)
     save_enriched(enriched)
+    log_icp_industry_diagnostics(enriched)
     return enriched
 
 

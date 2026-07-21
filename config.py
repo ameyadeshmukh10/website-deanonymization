@@ -98,14 +98,34 @@ PDL_IP_ENDPOINT = "https://api.peopledatalabs.com/v5/ip/enrich"
 # PDL IP API supports both IPv4 and IPv6. Use GET with ?ip=<ip>; POST is 405.
 
 # Cache PDL responses keyed by IP. Different TTLs by outcome — a `matched`
-# company assignment is stable for days; a `no_match` or `ineligible` might
-# resolve sooner as PDL improves its IP-to-company graph.
+# company assignment is stable for days; `no_match`/`ineligible` results are
+# even stickier (ineligible = hosting/proxy/VPN/Tor IPs that are effectively
+# permanent; no_match = residential/unknown IPs that rarely resolve). A 1-day
+# negative TTL re-billed ~10k dead IPs *daily* against the 100/min quota, which
+# the 30-min job can't keep up with — 7 days matches the matched TTL and cuts
+# that churn ~7x while barely affecting freshness.
 PDL_CACHE_FILE = DATA_DIR / "pdl_cache.json"
 PDL_CACHE_TTL_MATCHED_DAYS = 7
-PDL_CACHE_TTL_NEGATIVE_DAYS = 1
-# Min seconds between PDL calls to stay under their per-second rate limit.
-# 12 req/s caused a 429 mid-batch; 0.12s = ~8 req/s keeps comfortable headroom.
-PDL_MIN_INTERVAL_SEC = 0.12
+PDL_CACHE_TTL_NEGATIVE_DAYS = 7
+# Min seconds between PDL IP-enrichment calls. The IP Enrichment API is capped
+# at 100 requests/minute; the old 0.12s (~500/min) blew that quota in ~12s and
+# got the batch 429'd. 0.6s gives an effective ~70-85/min once request latency
+# is added on top — safely under 100 with headroom for window-boundary bursts.
+PDL_MIN_INTERVAL_SEC = 0.6
+# Circuit breaker for sustained PDL rate limiting. When this many IPs each
+# return 429 on *all* MAX_RETRIES attempts, PDL's per-minute quota is clearly
+# exhausted, so Step 3 stops making new calls for the rest of the run rather
+# than burning the job's wall-clock timeout on a closed door. The run finishes
+# with whatever it has; the next scheduled run resumes (Step 3 is resumable via
+# the on-disk PDL cache).
+PDL_RATE_LIMIT_MAX_STRIKES = 5
+# Per-run budget on *live* (uncached) PDL IP calls. Bounds each run so a cold
+# cache — e.g. after an outage expires every entry, leaving thousands of IPs to
+# re-enrich — drains across several green runs instead of timing out a single
+# job. When the budget is hit the run stops making new calls, finishes with
+# what it has, saves its cache, and the next scheduled run resumes. Sized to
+# fit Step 3 comfortably inside the job's wall-clock timeout at ~0.6s/call.
+PDL_MAX_LIVE_CALLS_PER_RUN = 1200
 
 # --- ICP industry gate (Steps 4 + 5) ----------------------------------------
 # PDL company.industry values that count as B2B tech ICP. Companies outside
@@ -136,6 +156,14 @@ ICP_EXCLUDE_TAG_PATTERNS: frozenset[str] = frozenset({
     "broadband",
 })
 
+# Size ceiling for ICP. Companies larger than this are treated as non-ICP
+# (is_icp_fit=false) — enterprise giants (Amazon, IBM, PwC, ...) aren't
+# realistic buyers for this product. Applied in icp_filter after the industry
+# and tag gates, using PDL's company.employee_count and falling back to the
+# `size` bucket's lower bound. Companies with unknown size are NOT excluded
+# (PDL reliably sizes the large companies this is meant to catch).
+ICP_MAX_EMPLOYEES = 5000
+
 # HubSpot custom company property name. Auto-created on first Step 4 run if
 # missing — see hubspot_client.ensure_icp_property.
 HUBSPOT_ICP_FIT_PROPERTY = "is_icp_fit"
@@ -163,6 +191,16 @@ QUALIFYING_ROLE_PATTERNS: tuple[str, ...] = (
 PDL_PERSON_SEARCH_ENDPOINT = "https://api.peopledatalabs.com/v5/person/search"
 PDL_PERSON_CACHE_FILE = DATA_DIR / "pdl_person_cache.json"
 PDL_PERSON_CACHE_TTL_DAYS = 7
+# Min seconds between PDL Person Search calls. The Person Search API is capped
+# at 10 requests/minute (much tighter than IP enrichment). 7s between live
+# calls yields ~8/min once request latency is added — under 10 with headroom.
+# Person Search is low-volume (one call per qualified ICP company, mostly cache
+# hits), so the conservative pace costs little.
+PDL_PERSON_MIN_INTERVAL_SEC = 7.0
+# Per-run budget on live (uncached) Person Search calls — same cold-cache
+# drain rationale as PDL_MAX_LIVE_CALLS_PER_RUN, but tighter because the 10/min
+# cap makes each call slow (~7s). Remaining companies resume next run.
+PDL_PERSON_MAX_LIVE_CALLS_PER_RUN = 80
 
 # Person Search results are always filtered to US.
 PERSON_SEARCH_COUNTRY = "united states"
